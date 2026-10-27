@@ -1,0 +1,154 @@
+sources:
+  a4i_bigquery:
+    kind: bigquery
+    project: qwiklabs-gcp-04-e7160ff57547
+    location: US
+
+tools:
+  list_surplus_postings:
+    kind: bigquery-sql
+    source: a4i_bigquery
+    description: >-
+      List all available surplus postings from the a4i_food.surplus_postings table,
+      ordered by posting_id. Use this when the user asks to see available postings
+      or references a posting by number or track (RETAIL, FARM, ESSENTIALS).
+    statement: |
+      SELECT
+        posting_id,
+        track,
+        posting_text,
+        foodkeeper_product,
+        storage_state,
+        hours_available,
+        shelf_life_hours,
+        hours_remaining
+      FROM `qwiklabs-gcp-04-e7160ff57547.a4i_food.surplus_postings`
+      ORDER BY posting_id ASC
+
+  get_surplus_posting:
+    kind: bigquery-sql
+    source: a4i_bigquery
+    description: >-
+      Fetch a single surplus posting by its integer posting_id (1 through 10)
+      from a4i_food.surplus_postings.
+    parameters:
+      - name: posting_id
+        type: integer
+        description: The integer posting_id (1 to 10) to retrieve.
+    statement: |
+      SELECT
+        posting_id,
+        track,
+        posting_text,
+        foodkeeper_product,
+        storage_state,
+        hours_available,
+        shelf_life_hours,
+        hours_remaining
+      FROM `qwiklabs-gcp-04-e7160ff57547.a4i_food.surplus_postings`
+      WHERE posting_id = @posting_id
+
+  search_shelf_life:
+    kind: bigquery-sql
+    source: a4i_bigquery
+    description: >-
+      Search the USDA FoodKeeper shelf_life table by product name, subtitle,
+      keywords, or category (case-insensitive substring match) to verify safe
+      refrigerated_hours and pantry_hours for a food item.
+    parameters:
+      - name: search_term
+        type: string
+        description: Product keyword to look up (e.g., 'spinach', 'milk', 'bread', 'blueberries', 'formula').
+    statement: |
+      SELECT
+        product_id,
+        product_name,
+        product_subtitle,
+        category,
+        keywords,
+        refrigerated_hours,
+        refrigerated_note,
+        pantry_hours,
+        pantry_note
+      FROM `qwiklabs-gcp-04-e7160ff57547.a4i_food.shelf_life`
+      WHERE LOWER(product_name) LIKE CONCAT('%', LOWER(@search_term), '%')
+         OR LOWER(IFNULL(product_subtitle, '')) LIKE CONCAT('%', LOWER(@search_term), '%')
+         OR LOWER(IFNULL(keywords, '')) LIKE CONCAT('%', LOWER(@search_term), '%')
+         OR LOWER(IFNULL(category, '')) LIKE CONCAT('%', LOWER(@search_term), '%')
+      ORDER BY product_name ASC
+      LIMIT 15
+
+  match_recipients_vector:
+    kind: bigquery-sql
+    source: a4i_bigquery
+    description: >-
+      Semantic + operational + neighborhood equity search over a4i_food.recipient_embeddings
+      using BigQuery VECTOR_SEARCH and gemini-embedding-2.
+      Returns the top 20 semantically similar recipients along with their full
+      profile_text, cold_storage type ('walk-in', 'commercial', 'domestic', 'medical', 'vehicle', 'none'),
+      frozen_storage, loading_dock, refrigerated_transport, max_pallets, pickup_window_hours,
+      service_days, populations_served, and pre-joined nearest Census tract equity metrics
+      (tract_poverty_rate, tract_assistance_rate, tract_no_vehicle_rate, tract_median_income, tract_distance_km).
+    parameters:
+      - name: query_text
+        type: string
+        description: >-
+          Rich natural-language query describing the surplus food offer, storage state,
+          volume/pallets, and ideal recipient type (e.g., '10 crates of fresh spinach needing cold storage for produce pantry or soup kitchen').
+      - name: max_pickup_window_hours
+        type: integer
+        description: >-
+          Maximum acceptable recipient pickup_window_hours (typically set to the posting's hours_remaining
+          so the recipient can receive the food before spoilage). Use 9999 if unconstrained.
+    statement: |
+      SELECT
+        base.recipient_id,
+        base.name,
+        base.street,
+        base.city,
+        base.state,
+        base.zip_code,
+        base.archetype,
+        base.archetype_label,
+        base.cold_storage,
+        base.frozen_storage,
+        base.loading_dock,
+        base.refrigerated_transport,
+        base.max_pallets,
+        base.pickup_window_hours,
+        base.weekly_households,
+        base.populations_served,
+        base.service_days,
+        base.profile_text,
+        base.profile_source,
+        base.tract_geo_id,
+        ROUND(base.tract_poverty_rate, 4) AS tract_poverty_rate,
+        ROUND(base.tract_assistance_rate, 4) AS tract_assistance_rate,
+        ROUND(base.tract_no_vehicle_rate, 4) AS tract_no_vehicle_rate,
+        ROUND(base.tract_median_income, 0) AS tract_median_income,
+        base.tract_distance_km,
+        ROUND(distance, 4) AS cosine_distance
+      FROM VECTOR_SEARCH(
+        TABLE `qwiklabs-gcp-04-e7160ff57547.a4i_food.recipient_embeddings`,
+        'embedding',
+        (
+          SELECT
+            AI.EMBED(
+              @query_text,
+              connection_id => 'us.vertex_ai',
+              endpoint => 'gemini-embedding-2'
+            ).result AS embedding
+        ),
+        top_k => 20,
+        distance_type => 'COSINE',
+        options => '{"use_brute_force":true}'
+      )
+      WHERE base.pickup_window_hours <= @max_pickup_window_hours
+      ORDER BY distance ASC, base.tract_poverty_rate DESC
+
+toolsets:
+  food_broker_toolset:
+    - list_surplus_postings
+    - get_surplus_posting
+    - search_shelf_life
+    - match_recipients_vector
