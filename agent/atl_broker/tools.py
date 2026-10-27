@@ -1333,7 +1333,7 @@ def submit_recipient_fulfilment(
 def update_surplus_recipient(
     posting_id: int,
     recipient_id: int,
-    note: Optional[str] = None,
+    note: str | None = None,
 ) -> dict:
     """Invoked by the primary agent or coordinator to validate and assign a specific
     community recipient to a surplus posting.

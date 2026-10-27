@@ -66,13 +66,13 @@ class CreatePostingRequest(BaseModel):
 class MatchBriefRequest(BaseModel):
     posting_id: int
     excluded_recipient_ids: list[int] = Field(default_factory=list)
-    override_recipient_id: Optional[int] = None
+    override_recipient_id: int | None = None
 
 
 class UpdateRecipientRequest(BaseModel):
     recipient_id: int
-    note: Optional[str] = None
-    coordinator_note: Optional[str] = None
+    note: str | None = None
+    coordinator_note: str | None = None
 
 
 class FulfilmentRequest(BaseModel):
@@ -155,7 +155,7 @@ def api_create_posting(req: CreatePostingRequest) -> dict:
 
 
 @app.get("/api/recipients")
-def api_get_recipients(query: Optional[str] = None, storage: Optional[str] = None) -> dict:
+def api_get_recipients(query: str | None = None, storage: str | None = None) -> dict:
     recs = get_active_recipients()
     if query:
         q = query.lower().strip()

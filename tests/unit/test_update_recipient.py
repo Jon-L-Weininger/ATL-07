@@ -1,10 +1,9 @@
 """Unit tests for updating surplus recipients and primary agent safety guardrails."""
 
-import pytest
 from agent.atl_broker.tools import (
-    update_surplus_recipient,
-    reset_surplus_recipient,
     assemble_match_brief,
+    reset_surplus_recipient,
+    update_surplus_recipient,
 )
 
 
