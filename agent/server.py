@@ -13,8 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,7 +23,6 @@ from pydantic import BaseModel, Field
 from .atl_broker.config import (
     BQ_DATASET,
     GOOGLE_CLOUD_PROJECT,
-    USE_MOCK_BACKEND,
     USE_VECTOR_SEARCH,
     get_backend_status,
 )
@@ -72,8 +70,8 @@ class ChatMessage(BaseModel):
 
 class ChatRequest(BaseModel):
     messages: list[ChatMessage]
-    active_posting_id: Optional[int] = 1
-    track: Optional[str] = "ALL"
+    active_posting_id: int | None = 1
+    track: str | None = "ALL"
 
 
 @app.get("/api/status")
@@ -128,7 +126,7 @@ def api_create_posting(req: CreatePostingRequest) -> dict:
         "hours_available": req.hours_available,
         "shelf_life_hours": clock["foodkeeper_shelf_life_hours"],
         "hours_remaining": hours_rem,
-        "created_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "created_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "urgency_tier": urgency,
     }
     postings.insert(0, new_posting)
@@ -304,7 +302,7 @@ Comparing the US Census ACS tracts of our **matched recipients across all 10 pos
         ]
 
     elif "essential" in q_lower or "formula" in q_lower or "diaper" in q_lower or "clinic" in q_lower or "stretch" in q_lower:
-        answer = f"""### Stretch Goal Track: 🍼 Critical Non-Food Essentials (`{BQ_DATASET}.surplus_postings` #8–#10)
+        answer = f"""### Stretch Goal Track: 🍼 Critical Non-Food Essentials (`{BQ_DATASET}.surplus_postings` #8-#10)
 
 In `{GOOGLE_CLOUD_PROJECT}.{BQ_DATASET}.surplus_postings`, postings **#8, #9, and #10** test the **Critical Non-Food Essentials** track against our 127 real + planted Atlanta recipients:
 

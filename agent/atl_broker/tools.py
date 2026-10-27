@@ -15,7 +15,6 @@ While `USE_VECTOR_SEARCH=false` (before `profile_embedding` is added to `a4i_foo
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 from .config import (
     ATLANTA_METRO_BASELINE,
@@ -27,8 +26,14 @@ from .config import (
 )
 from .mock_data import (
     RECIPIENTS as MOCK_RECIPIENTS,
+)
+from .mock_data import (
     SHELF_LIFE as MOCK_SHELF_LIFE,
+)
+from .mock_data import (
     SURPLUS_POSTINGS as MOCK_SURPLUS_POSTINGS,
+)
+from .mock_data import (
     TRACT_DEMOGRAPHICS as MOCK_TRACT_DEMOGRAPHICS,
 )
 
@@ -122,7 +127,7 @@ _POSTING_DISPLAY_ENRICHMENT: dict[int, dict] = {
         "donor_name": "Fulton Wholesale Family & Baby Supply Hub",
         "pallets_estimated": 1.0,
         "created_at": "2025-05-12T08:45:00Z",
-        "foodkeeper_label": "Diapers & Wipes (Sizes 1–4)",
+        "foodkeeper_label": "Diapers & Wipes (Sizes 1-4)",
     },
     10: {
         "donor_name": "Midtown Specialty Nutrition & Hospital Supply",
@@ -148,7 +153,7 @@ def _tract_neighborhood_label(geo_id: str, city: str = "Atlanta", zip_code: str 
     return f"{area} (Tract {geo_id[-6:] if geo_id else 'N/A'})"
 
 
-def _detect_planted_role(recipient_id: int, profile_source: str, profile_text: str) -> Optional[str]:
+def _detect_planted_role(recipient_id: int, profile_source: str, profile_text: str) -> str | None:
     """Identify the specific teaching role for the 9 planted cases in `a4i_food.recipients`."""
     p_lower = (profile_text or "").lower()
     if (
@@ -732,7 +737,7 @@ def search_and_filter_recipients(
     required_storage: str = "refrigerated",
     pallets_needed: float = 1.5,
     hours_remaining: float = 6.0,
-    excluded_recipient_ids: Optional[list[int]] = None,
+    excluded_recipient_ids: list[int] | None = None,
 ) -> dict:
     """Search `a4i_food.recipient_embeddings` (127 rows in BigQuery) and apply hard post-search verification.
 
@@ -926,7 +931,7 @@ def get_tract_equity_context(recipient_id: int) -> dict:
 
 def assemble_match_brief(
     posting_id: int,
-    excluded_recipient_ids: Optional[list[int]] = None,
+    excluded_recipient_ids: list[int] | None = None,
 ) -> dict:
     """Assemble the complete Coordinator Match Brief for a surplus posting from `a4i_food.surplus_postings`."""
     postings = get_active_postings()

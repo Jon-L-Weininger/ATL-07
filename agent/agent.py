@@ -15,6 +15,13 @@
 
 import os
 
+from dotenv import load_dotenv
+
+load_dotenv()
+os.environ.setdefault("GOOGLE_GENAI_USE_VERTEXAI", "TRUE")
+os.environ.setdefault("GOOGLE_CLOUD_PROJECT", "qwiklabs-gcp-04-e7160ff57547")
+os.environ.setdefault("GOOGLE_CLOUD_LOCATION", "us-central1")
+
 from google.adk.agents import Agent
 from google.adk.apps import App
 from google.adk.models import Gemini
@@ -24,6 +31,7 @@ from google.adk.tools.mcp_tool.mcp_session_manager import (
 )
 from google.genai import types
 
+from agent.atl_broker.config import _is_mcp_toolbox_online
 from agent.atl_broker.tools import (
     assemble_match_brief,
     get_tract_equity_context,
@@ -37,10 +45,15 @@ MODEL = os.environ.get("ADK_MODEL", "gemini-2.5-flash")
 MCP_TOOLBOX_URL = os.environ.get("MCP_TOOLBOX_URL", "http://127.0.0.1:5000").rstrip(
     "/"
 )
+_mcp_endpoint = (
+    MCP_TOOLBOX_URL
+    if "/mcp/" in MCP_TOOLBOX_URL
+    else f"{MCP_TOOLBOX_URL}/mcp/food_broker_toolset"
+)
 
 mcp_food_broker_toolset = McpToolset(
     connection_params=StreamableHTTPConnectionParams(
-        url=f"{MCP_TOOLBOX_URL}/mcp/food_broker_toolset",
+        url=_mcp_endpoint,
         timeout=30.0,
     ),
 )
@@ -82,6 +95,17 @@ Present every match recommendation using these exact 6 sections:
    - List the **Next 2 Backup Options** ("If they say no") with their IDs, addresses, capacities, clock margins, and tract poverty/assistance rates.
 """
 
+_agent_tools = [
+    evaluate_logistics_and_split,
+    assemble_match_brief,
+    search_and_filter_recipients,
+    lookup_shelf_life_clock,
+    get_tract_equity_context,
+    run_equity_audit,
+]
+if _is_mcp_toolbox_online():
+    _agent_tools.insert(0, mcp_food_broker_toolset)
+
 root_agent = Agent(
     # Keep in sync with create_params.root_agent_name in agents-cli-manifest.yaml:
     # telemetry reports this name as gen_ai.agent.name, and agents-cli reports the
@@ -93,15 +117,7 @@ root_agent = Agent(
         retry_options=types.HttpRetryOptions(attempts=3),
     ),
     instruction=BROKER_INSTRUCTION,
-    tools=[
-        mcp_food_broker_toolset,
-        evaluate_logistics_and_split,
-        assemble_match_brief,
-        search_and_filter_recipients,
-        lookup_shelf_life_clock,
-        get_tract_equity_context,
-        run_equity_audit,
-    ],
+    tools=_agent_tools,
 )
 
 app = App(
