@@ -14,8 +14,8 @@ export const EquityAuditChart: React.FC<EquityAuditChartProps> = ({
 }) => {
   if (!auditData) {
     return (
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-6 text-sm text-zinc-500">
-        Loading Atlanta Census Tract Equity Audit...
+      <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-2xl p-6 text-sm text-stone-500">
+        Loading Atlanta Neighborhood Equity Audit...
       </div>
     );
   }
@@ -24,14 +24,13 @@ export const EquityAuditChart: React.FC<EquityAuditChartProps> = ({
   const matchedAvg = auditData.matched_averages;
   const postings = auditData.matched_postings;
 
-  const textColor = isDark ? '#e4e4e7' : '#27272a';
-  const subTextColor = isDark ? '#a1a1aa' : '#71717a';
-  const splitLineColor = isDark ? '#27272a' : '#f4f4f5';
+  const textColor = isDark ? '#f5f5f4' : '#1c1917';
+  const subTextColor = isDark ? '#a8a29e' : '#57534e';
+  const splitLineColor = isDark ? '#292524' : '#e7e5e4';
 
-  // Chart 1: Matched Recipients Avg vs. Atlanta Metro Baseline + Individual Matched Postings
   const categories = [
-    `ATL Metro Baseline (${baseline.total_corpus_rows || 127} Orgs)`,
-    'Our Broker Matched Avg',
+    'Atlanta Metro Baseline',
+    'Matched Recipients Avg',
     ...postings.map(
       (p) => `#${p.posting_id} ${p.recipient_name.split(' ').slice(0, 2).join(' ')}`,
     ),
@@ -60,8 +59,8 @@ export const EquityAuditChart: React.FC<EquityAuditChartProps> = ({
     tooltip: {
       trigger: 'axis',
       axisPointer: { type: 'shadow' },
-      backgroundColor: isDark ? '#18181b' : '#ffffff',
-      borderColor: isDark ? '#3f3f46' : '#e4e4e7',
+      backgroundColor: isDark ? '#1c1917' : '#ffffff',
+      borderColor: isDark ? '#44403c' : '#e7e5e4',
       textStyle: {
         color: textColor,
         fontFamily: 'DM Sans, sans-serif',
@@ -92,7 +91,7 @@ export const EquityAuditChart: React.FC<EquityAuditChartProps> = ({
         color: subTextColor,
         fontSize: 11,
         interval: 0,
-        rotate: 12,
+        rotate: 10,
       },
       axisLine: {
         lineStyle: { color: splitLineColor },
@@ -100,7 +99,7 @@ export const EquityAuditChart: React.FC<EquityAuditChartProps> = ({
     },
     yAxis: {
       type: 'value',
-      name: 'Tract Share (%)',
+      name: 'Neighborhood Share (%)',
       nameTextStyle: { color: subTextColor, fontSize: 11 },
       axisLabel: {
         color: subTextColor,
@@ -116,22 +115,22 @@ export const EquityAuditChart: React.FC<EquityAuditChartProps> = ({
       {
         name: 'No-Vehicle Households (%)',
         type: 'bar',
-        barMaxWidth: 26,
-        itemStyle: { color: '#2563eb', borderRadius: [4, 4, 0, 0] },
+        barMaxWidth: 28,
+        itemStyle: { color: isDark ? '#10b981' : '#065f46', borderRadius: [5, 5, 0, 0] },
         data: noVehicleSeries,
       },
       {
         name: 'Tract Poverty Rate (%)',
         type: 'bar',
-        barMaxWidth: 26,
-        itemStyle: { color: '#0d9488', borderRadius: [4, 4, 0, 0] },
+        barMaxWidth: 28,
+        itemStyle: { color: '#d97706', borderRadius: [5, 5, 0, 0] },
         data: povertySeries,
       },
       {
-        name: 'Public Assistance / SNAP (%)',
+        name: 'SNAP / Public Assistance (%)',
         type: 'bar',
-        barMaxWidth: 26,
-        itemStyle: { color: '#f59e0b', borderRadius: [4, 4, 0, 0] },
+        barMaxWidth: 28,
+        itemStyle: { color: '#78716c', borderRadius: [5, 5, 0, 0] },
         data: assistanceSeries,
       },
     ],
@@ -139,43 +138,43 @@ export const EquityAuditChart: React.FC<EquityAuditChartProps> = ({
 
   return (
     <div className="grid grid-cols-1 gap-6">
-      {/* Main Full-Width Chart Container */}
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-6 shadow-sm">
+      {/* Main Chart Card */}
+      <div className="bg-white dark:bg-stone-900 border border-stone-200/90 dark:border-stone-800 rounded-2xl p-6 shadow-sm">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
           <div>
             <div className="flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-              <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-                Atlanta Census Tract Equity Audit: &ldquo;Did the Food Go Where the Need Is, or Where the Loading Docks Are?&rdquo;
+              <TrendingUp className="w-4 h-4 text-emerald-800 dark:text-emerald-400" />
+              <h2 className="text-lg font-display font-semibold text-stone-900 dark:text-stone-100">
+                Did the Food Go Where the Need Is, or Where the Loading Docks Are?
               </h2>
             </div>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-              Comparing live BigQuery US Census ACS 5-year tract indicators (`a4i_food.tract_demographics` &amp; `a4i_food.recipients_demographics`) for our matched Atlanta recipients against the Atlanta Metro Baseline ({(baseline.no_vehicle_rate * 100).toFixed(1)}% no-vehicle households across {baseline.irs_orgs_count} real IRS organizations + {baseline.planted_cases_count} planted cases).
+            <p className="text-xs text-stone-500 dark:text-stone-400 mt-1 max-w-3xl">
+              Comparing US Census ACS neighborhood indicators for our matched retail rescue recipients against the Atlanta Metro baseline ({(baseline.no_vehicle_rate * 100).toFixed(1)}% no-vehicle households across {baseline.total_corpus_rows || 127} local organizations).
             </p>
           </div>
           <div className="flex items-center gap-3 shrink-0">
-            <div className="px-3 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800/60">
-              <div className="text-[10px] uppercase tracking-wider text-blue-600 dark:text-blue-400 font-semibold">
+            <div className="px-3.5 py-2 rounded-xl bg-emerald-50/80 dark:bg-emerald-950/50 border border-emerald-200/80 dark:border-emerald-800/60">
+              <div className="text-[10px] uppercase tracking-wider text-emerald-800 dark:text-emerald-400 font-semibold">
                 Matched No-Vehicle Avg
               </div>
-              <div className="text-sm font-mono font-bold text-blue-700 dark:text-blue-300">
+              <div className="text-sm font-mono font-bold text-emerald-900 dark:text-emerald-300">
                 {(matchedAvg.no_vehicle_rate * 100).toFixed(1)}% vs.{' '}
-                {(baseline.no_vehicle_rate * 100).toFixed(1)}% ATL Avg
+                {(baseline.no_vehicle_rate * 100).toFixed(1)}% ATL
               </div>
             </div>
-            <div className="px-3 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800/60">
-              <div className="text-[10px] uppercase tracking-wider text-emerald-600 dark:text-emerald-400 font-semibold">
+            <div className="px-3.5 py-2 rounded-xl bg-amber-50/80 dark:bg-amber-950/50 border border-amber-200/80 dark:border-amber-800/60">
+              <div className="text-[10px] uppercase tracking-wider text-amber-800 dark:text-amber-400 font-semibold">
                 Matched Poverty Avg
               </div>
-              <div className="text-sm font-mono font-bold text-emerald-700 dark:text-emerald-300">
+              <div className="text-sm font-mono font-bold text-amber-900 dark:text-amber-300">
                 {(matchedAvg.poverty_rate * 100).toFixed(1)}% vs.{' '}
-                {(baseline.poverty_rate * 100).toFixed(1)}% ATL Avg
+                {(baseline.poverty_rate * 100).toFixed(1)}% ATL
               </div>
             </div>
           </div>
         </div>
 
-        <div className="w-full h-[380px]">
+        <div className="w-full h-[360px]">
           <ReactECharts
             option={option}
             style={{ height: '100%', width: '100%' }}
@@ -184,50 +183,50 @@ export const EquityAuditChart: React.FC<EquityAuditChartProps> = ({
         </div>
       </div>
 
-      {/* Tract Breakdown Table + Real vs. Synthetic Data Transparency Card */}
+      {/* Breakdown Table + Data Provenance */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-6 shadow-sm">
-          <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-3 flex items-center gap-2">
-            <MapPin className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-            Atlanta Census Tracts Reached Across Active Postings (`a4i_food.tract_demographics`)
+        <div className="lg:col-span-2 bg-white dark:bg-stone-900 border border-stone-200/90 dark:border-stone-800 rounded-2xl p-6 shadow-sm">
+          <h3 className="text-base font-display font-semibold text-stone-900 dark:text-stone-100 mb-3 flex items-center gap-2">
+            <MapPin className="w-4 h-4 text-emerald-800 dark:text-emerald-400" />
+            Neighborhoods Reached Across Active Retail Rescues
           </h3>
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-zinc-200 dark:border-zinc-800 text-[11px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                  <th className="py-2.5 pr-3">Posting</th>
+                <tr className="border-b border-stone-200 dark:border-stone-800 text-[11px] uppercase tracking-wider text-stone-500 dark:text-stone-400">
+                  <th className="py-2.5 pr-3">Offer</th>
                   <th className="py-2.5 px-3">Matched Recipient</th>
-                  <th className="py-2.5 px-3">Atlanta Neighborhood & FIPS</th>
+                  <th className="py-2.5 px-3">Neighborhood</th>
                   <th className="py-2.5 px-3 text-right">No-Vehicle %</th>
                   <th className="py-2.5 px-3 text-right">Poverty %</th>
                   <th className="py-2.5 pl-3 text-right">Households/Wk</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-200/70 dark:divide-zinc-800/70 text-xs">
+              <tbody className="divide-y divide-stone-200/70 dark:divide-stone-800/70 text-xs">
                 {postings.map((row) => (
                   <tr
                     key={row.posting_id}
-                    className="hover:bg-zinc-50 dark:hover:bg-zinc-800/40 transition-colors"
+                    className="hover:bg-stone-50 dark:hover:bg-stone-800/40 transition-colors"
                   >
-                    <td className="py-2.5 pr-3 font-mono font-medium text-zinc-800 dark:text-zinc-200">
+                    <td className="py-3 pr-3 font-mono font-medium text-stone-800 dark:text-stone-200">
                       #{row.posting_id} · {row.product}
                     </td>
-                    <td className="py-2.5 px-3 font-medium text-zinc-900 dark:text-zinc-100">
+                    <td className="py-3 px-3 font-medium text-stone-900 dark:text-stone-100">
                       {row.recipient_name}
                     </td>
-                    <td className="py-2.5 px-3 text-zinc-600 dark:text-zinc-400">
+                    <td className="py-3 px-3 text-stone-600 dark:text-stone-400">
                       <div>{row.neighborhood}</div>
-                      <div className="font-mono text-[10px] text-zinc-400">
-                        FIPS {row.geo_id}
+                      <div className="font-mono text-[10px] text-stone-400">
+                        Tract {row.geo_id}
                       </div>
                     </td>
-                    <td className="py-2.5 px-3 text-right font-mono font-semibold text-blue-600 dark:text-blue-400">
+                    <td className="py-3 px-3 text-right font-mono font-semibold text-emerald-800 dark:text-emerald-400">
                       {(row.no_vehicle_rate * 100).toFixed(1)}%
                     </td>
-                    <td className="py-2.5 px-3 text-right font-mono text-emerald-600 dark:text-emerald-400">
+                    <td className="py-3 px-3 text-right font-mono text-amber-700 dark:text-amber-400">
                       {(row.poverty_rate * 100).toFixed(1)}%
                     </td>
-                    <td className="py-2.5 pl-3 text-right font-mono text-zinc-700 dark:text-zinc-300">
+                    <td className="py-3 pl-3 text-right font-mono text-stone-700 dark:text-stone-300">
                       {row.weekly_households.toLocaleString()}
                     </td>
                   </tr>
@@ -237,41 +236,41 @@ export const EquityAuditChart: React.FC<EquityAuditChartProps> = ({
           </div>
         </div>
 
-        {/* Data Provenance Card (Section 4 of README.md) */}
-        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-6 shadow-sm flex flex-col justify-between space-y-4">
+        {/* Data Provenance Card */}
+        <div className="bg-white dark:bg-stone-900 border border-stone-200/90 dark:border-stone-800 rounded-2xl p-6 shadow-sm flex flex-col justify-between space-y-4">
           <div className="space-y-3">
-            <div className="flex items-center gap-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-              <Info className="w-4 h-4 text-amber-500" />
-              Data Provenance: Half Real, Half Synthetic
+            <div className="flex items-center gap-2 text-base font-display font-semibold text-stone-900 dark:text-stone-100">
+              <Info className="w-4 h-4 text-amber-600" />
+              Data Transparency: Real vs. Generated
             </div>
-            <p className="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
-              Per the Challenge 2 specification, this broker surfaces which signals come from authoritative public records vs. deterministically generated operational profiles:
+            <p className="text-xs text-stone-600 dark:text-stone-400 leading-relaxed">
+              This dashboard combines authoritative public records with realistic operational capacity profiles:
             </p>
-            <div className="space-y-2 text-xs">
-              <div className="p-2.5 rounded-lg bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/70 dark:border-emerald-800/50">
-                <div className="font-semibold text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
+            <div className="space-y-2.5 text-xs">
+              <div className="p-3 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/70 dark:border-emerald-800/50">
+                <div className="font-semibold text-emerald-900 dark:text-emerald-300 flex items-center gap-1.5">
                   <ShieldCheck className="w-3.5 h-3.5" />
-                  100% Real Public Data
+                  Authoritative Public Records
                 </div>
-                <ul className="mt-1 space-y-1 text-emerald-700 dark:text-emerald-400/90 text-[11px] list-disc list-inside">
-                  <li>IRS Exempt Organizations BMF (`ein`, `name`, `street`, `zip_code`, `ntee_code`, `reported_income`)</li>
-                  <li>USDA FoodKeeper (`shelf_life` hours & storage notes)</li>
-                  <li>US Census ACS (`poverty_rate`, `no_vehicle_rate`, `assistance_rate`)</li>
+                <ul className="mt-1.5 space-y-1 text-emerald-800 dark:text-emerald-400/90 text-[11px] list-disc list-inside">
+                  <li>IRS Exempt Organizations (names, addresses, reported income)</li>
+                  <li>USDA FoodKeeper shelf-life guidance (661 products)</li>
+                  <li>US Census ACS neighborhood poverty &amp; vehicle access</li>
                 </ul>
               </div>
-              <div className="p-2.5 rounded-lg bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/70 dark:border-amber-800/50">
-                <div className="font-semibold text-amber-800 dark:text-amber-300">
-                  Deterministically Generated & Planted (`seed=42`)
+              <div className="p-3 rounded-xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/70 dark:border-amber-800/50">
+                <div className="font-semibold text-amber-900 dark:text-amber-300">
+                  Simulated Operational Profiles
                 </div>
-                <ul className="mt-1 space-y-1 text-amber-700 dark:text-amber-400/90 text-[11px] list-disc list-inside">
-                  <li>Operational fields (`cold_storage`, `max_pallets`, `pickup_window_hours`, `profile_text`)</li>
-                  <li>9 planted teaching cases (`Greenline` decoy, `Harborview` contradiction, `Cedar/Maple` tie)</li>
+                <ul className="mt-1.5 space-y-1 text-amber-800 dark:text-amber-400/90 text-[11px] list-disc list-inside">
+                  <li>Cold storage type, pallet limits, and pickup windows</li>
+                  <li>Planted safety test cases (near-miss decoys &amp; contradictions)</li>
                 </ul>
               </div>
             </div>
           </div>
-          <div className="text-[11px] text-zinc-500 dark:text-zinc-400 border-t border-zinc-200 dark:border-zinc-800 pt-3">
-            Metro Bounding Box: <span className="font-mono">33.55..33.92 N, -84.55..-84.28 W</span> (Atlanta, GA)
+          <div className="text-[11px] text-stone-500 dark:text-stone-400 border-t border-stone-200 dark:border-stone-800 pt-3">
+            Coverage Area: <span className="font-mono">Atlanta Metro, GA</span>
           </div>
         </div>
       </div>

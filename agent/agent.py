@@ -36,9 +36,11 @@ from agent.atl_broker.tools import (
     assemble_match_brief,
     get_tract_equity_context,
     lookup_shelf_life_clock,
+    reset_surplus_recipient,
     run_equity_audit,
     search_and_filter_recipients,
     submit_recipient_fulfilment,
+    update_surplus_recipient,
 )
 from agent.custom_tools import evaluate_logistics_and_split
 
@@ -99,6 +101,8 @@ Present every match recommendation using these exact 6 sections:
 _agent_tools = [
     evaluate_logistics_and_split,
     assemble_match_brief,
+    update_surplus_recipient,
+    reset_surplus_recipient,
     search_and_filter_recipients,
     lookup_shelf_life_clock,
     get_tract_equity_context,
