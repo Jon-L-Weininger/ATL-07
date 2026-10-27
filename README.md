@@ -2,6 +2,11 @@
 
 **Agents for Impact 2026**
 
+> 📐 **System Architecture Blueprints**:
+> - [**Executive Architecture Blueprint**](docs/architecture/executive_architecture.md) — Presentation-ready strategic architecture, value pillars, journey flow, and impact KPIs.
+> - [**Technical Architecture Map**](docs/architecture/technical_architecture.md) — Deep-dive engineering map of the React UI, ADK Agent, BigQuery & Vector Search engine, deterministic guardrails, and Cloud Run runtime.
+
+
 ---
 
 ## Why this one matters
