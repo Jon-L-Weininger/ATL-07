@@ -782,14 +782,14 @@ export const App: React.FC = () => {
                           </button>
                         )}
 
-                        {/* Prominent Update Recipient Button calling Primary Agent */}
+                        {/* Secondary Change Recipient Button calling Primary Agent */}
                         <button
                           onClick={() => setIsUpdateModalOpen(true)}
-                          className="px-4 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-500 flex items-center gap-1.5 transition-all shadow-sm hover:shadow active:scale-[0.98]"
+                          className="px-3.5 py-2 rounded-xl text-xs font-semibold border-2 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:border-emerald-500 dark:hover:border-emerald-500 hover:text-emerald-700 dark:hover:text-emerald-300 flex items-center gap-1.5 transition-all shadow-2xs active:scale-[0.98]"
                           title="Choose or change the recipient for this surplus posting using the primary agent"
                         >
-                          <Sparkles className="w-3.5 h-3.5 text-emerald-200" />
-                          Update Recipient
+                          <Sparkles className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                          Change Recipient
                         </button>
 
                         <button
