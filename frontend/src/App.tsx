@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Clock,
   ShieldAlert,
@@ -21,27 +21,42 @@ import {
   ChevronDown,
   ChevronUp,
   Users,
+  ArrowUpDown,
+  Search,
+  Map as MapIcon,
 } from 'lucide-react';
 import {
   SurplusPosting,
+  Recipient,
   MatchBrief,
   EquityAuditResponse,
   fetchPostings,
   fetchMatchBrief,
   fetchEquityAudit,
+  fetchRecipients,
   createPosting,
   resetPostingRecipient,
 } from './services/brokerApi';
 import { ChatPanel } from './components/ChatPanel';
 import { EquityAuditChart } from './components/EquityAuditChart';
 import { UpdateRecipientModal } from './components/UpdateRecipientModal';
+import { SpatialEquityMap } from './components/SpatialEquityMap';
 
 const RETAIL_TRACK = 'RETAIL';
 
+type SortKey =
+  | 'expiry_asc'
+  | 'expiry_desc'
+  | 'pallets_desc'
+  | 'pallets_asc'
+  | 'id_asc'
+  | 'donor_asc';
+
 export const App: React.FC = () => {
   const [isDark, setIsDark] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<'broker' | 'equity'>('broker');
+  const [activeTab, setActiveTab] = useState<'broker' | 'map' | 'equity'>('broker');
   const [postings, setPostings] = useState<SurplusPosting[]>([]);
+  const [allRecipients, setAllRecipients] = useState<Recipient[]>([]);
   const [selectedPostingId, setSelectedPostingId] = useState<number>(1);
   const [excludedByPosting, setExcludedByPosting] = useState<Record<number, number[]>>({});
   const [matchBrief, setMatchBrief] = useState<MatchBrief | null>(null);
@@ -51,16 +66,22 @@ export const App: React.FC = () => {
   const [isDeclining, setIsDeclining] = useState<boolean>(false);
   const [copiedOutreach, setCopiedOutreach] = useState<boolean>(false);
 
+  // Queue Sort, Filter, and Search controls
+  const [sortKey, setSortKey] = useState<SortKey>('expiry_asc');
+  const [filterTrack, setFilterTrack] = useState<string>('all');
+  const [queueSearch, setQueueSearch] = useState<string>('');
+
   // Progressive disclosure toggles inside Match Brief
   const [showBackups, setShowBackups] = useState<boolean>(false);
   const [showDecoys, setShowDecoys] = useState<boolean>(false);
 
-  // Slide-over AI Assistant Drawer (closed by default so workspace is uncluttered)
+  // Slide-over AI Assistant Drawer
   const [isChatOpen, setIsChatOpen] = useState<boolean>(false);
   const [chatExternalPrompt, setChatExternalPrompt] = useState<string | null>(null);
 
   // Update Recipient Modal state & banner notification
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState<boolean>(false);
+  const [preselectedRecipientId, setPreselectedRecipientId] = useState<number | null>(null);
   const [assignmentMessage, setAssignmentMessage] = useState<string | null>(null);
 
   // New Surplus Offer Modal state (Retail & Grocer Rescue only)
@@ -85,21 +106,25 @@ export const App: React.FC = () => {
     }
   }, [isDark]);
 
-  // Initial load of Retail postings and equity audit
+  // Initial load of Retail postings, equity audit, and community recipients
   useEffect(() => {
     const loadInitial = async () => {
       try {
-        const [postingsRes, auditRes] = await Promise.all([
+        const [postingsRes, auditRes, recsRes] = await Promise.all([
           fetchPostings(RETAIL_TRACK),
           fetchEquityAudit(RETAIL_TRACK),
+          fetchRecipients(),
         ]);
         setPostings(postingsRes.postings);
         setEquityAudit(auditRes);
-        if (
-          postingsRes.postings.length > 0 &&
-          !postingsRes.postings.some((p) => p.posting_id === selectedPostingId)
-        ) {
-          setSelectedPostingId(postingsRes.postings[0].posting_id);
+        setAllRecipients(recsRes.recipients);
+
+        if (postingsRes.postings.length > 0) {
+          // Default to the offer closest to expiration
+          const sorted = [...postingsRes.postings].sort(
+            (a, b) => a.hours_remaining - b.hours_remaining,
+          );
+          setSelectedPostingId(sorted[0].posting_id);
         }
       } catch (err) {
         console.error('Error loading initial broker data:', err);
@@ -107,6 +132,57 @@ export const App: React.FC = () => {
     };
     loadInitial();
   }, []);
+
+  // Sorted and filtered postings list (Defaults to closest to expiration first)
+  const sortedAndFilteredPostings = useMemo(() => {
+    let list = [...postings];
+
+    if (queueSearch.trim()) {
+      const q = queueSearch.toLowerCase().trim();
+      list = list.filter(
+        (p) =>
+          p.foodkeeper_product.toLowerCase().includes(q) ||
+          p.donor_name.toLowerCase().includes(q) ||
+          p.posting_text.toLowerCase().includes(q) ||
+          String(p.posting_id).includes(q),
+      );
+    }
+
+    if (filterTrack === 'urgent') {
+      list = list.filter((p) => p.hours_remaining <= 8);
+    } else if (filterTrack === 'refrigerated') {
+      list = list.filter((p) => p.storage_state === 'refrigerated');
+    } else if (filterTrack === 'pantry') {
+      list = list.filter((p) => p.storage_state === 'pantry');
+    }
+
+    list.sort((a, b) => {
+      switch (sortKey) {
+        case 'expiry_asc':
+          return a.hours_remaining - b.hours_remaining || a.posting_id - b.posting_id;
+        case 'expiry_desc':
+          return b.hours_remaining - a.hours_remaining || a.posting_id - b.posting_id;
+        case 'pallets_desc':
+          return (
+            (b.pallets_estimated || 0) - (a.pallets_estimated || 0) ||
+            a.hours_remaining - b.hours_remaining
+          );
+        case 'pallets_asc':
+          return (
+            (a.pallets_estimated || 0) - (b.pallets_estimated || 0) ||
+            a.hours_remaining - b.hours_remaining
+          );
+        case 'id_asc':
+          return a.posting_id - b.posting_id;
+        case 'donor_asc':
+          return a.donor_name.localeCompare(b.donor_name);
+        default:
+          return a.hours_remaining - b.hours_remaining;
+      }
+    });
+
+    return list;
+  }, [postings, sortKey, filterTrack, queueSearch]);
 
   // Load Match Brief whenever selectedPostingId or excluded recipients change
   useEffect(() => {
@@ -216,52 +292,248 @@ export const App: React.FC = () => {
     : '27.4';
   const decoysCaughtCount = matchBrief?.rejected_decoys?.length || 2;
 
+  // Left Column: Perishable Surplus Rescue Queue
+  const renderRescueQueue = () => (
+    <div className="xl:col-span-4 bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-700 rounded-2xl shadow-md dark:shadow-slate-950/40 ring-1 ring-slate-900/5 dark:ring-white/10 overflow-hidden flex flex-col">
+      {/* Queue Header & Sort Controls */}
+      <div className="p-4 border-b-2 border-slate-200 dark:border-slate-800 bg-slate-100/80 dark:bg-slate-850/90 space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <h2 className="text-sm font-semibold tracking-tight text-slate-900 dark:text-slate-100 flex items-center gap-2">
+              <span>Rescue Queue</span>
+              <span className="px-2 py-0.5 text-[11px] font-mono font-medium rounded-full bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 tabular-nums border border-slate-300 dark:border-slate-600">
+                {sortedAndFilteredPostings.length}
+              </span>
+            </h2>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+              Perishable surplus awaiting dispatch
+            </p>
+          </div>
+
+          {/* General Sort Dropdown Control */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            <select
+              value={sortKey}
+              onChange={(e) => setSortKey(e.target.value as SortKey)}
+              aria-label="Sort queue offers"
+              className="text-xs font-medium bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-650 rounded-lg px-2.5 py-1 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer shadow-2xs"
+            >
+              <option value="expiry_asc">Expiry: Soonest first (Default)</option>
+              <option value="expiry_desc">Expiry: Longest first</option>
+              <option value="pallets_desc">Size: Largest pallets</option>
+              <option value="pallets_asc">Size: Smallest pallets</option>
+              <option value="id_asc">Order: Posting #</option>
+              <option value="donor_asc">Donor: A to Z</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Quick Search & Filter Chips */}
+        <div className="space-y-2">
+          <div className="relative">
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+            <input
+              type="text"
+              value={queueSearch}
+              onChange={(e) => setQueueSearch(e.target.value)}
+              placeholder="Search offer, product, or donor..."
+              className="w-full pl-8 pr-7 py-1.5 text-xs bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-650 rounded-lg text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+            />
+            {queueSearch && (
+              <button
+                onClick={() => setQueueSearch('')}
+                className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 text-[11px]">
+            {[
+              { key: 'all', label: 'All' },
+              { key: 'urgent', label: 'Urgent (≤8h)' },
+              { key: 'refrigerated', label: 'Refrigerated' },
+              { key: 'pantry', label: 'Pantry' },
+            ].map((f) => (
+              <button
+                key={f.key}
+                onClick={() => setFilterTrack(f.key)}
+                className={`px-2.5 py-1 rounded-md font-medium whitespace-nowrap transition-colors ${
+                  filterTrack === f.key
+                    ? 'bg-slate-900 text-white dark:bg-emerald-600 dark:text-white border border-slate-900 dark:border-emerald-500 shadow-2xs'
+                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-300/80 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700/60'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Surplus Items List - Individual Cards */}
+      <div className="p-3 space-y-2.5 max-h-[700px] overflow-y-auto bg-slate-50/50 dark:bg-slate-950/40">
+        {sortedAndFilteredPostings.length === 0 ? (
+          <div className="p-8 text-center text-xs text-slate-500">
+            No surplus offers matching current search or filters.
+          </div>
+        ) : (
+          sortedAndFilteredPostings.map((post) => {
+            const isSelected = post.posting_id === selectedPostingId;
+            const isCritical = post.hours_remaining <= 6;
+            const isUrgent = post.hours_remaining <= 10;
+            const clockPct = Math.min(
+              100,
+              Math.max(14, (post.hours_remaining / 24) * 100),
+            );
+
+            return (
+              <button
+                key={post.posting_id}
+                onClick={() => setSelectedPostingId(post.posting_id)}
+                className={`w-full text-left p-3.5 rounded-xl transition-all relative ${
+                  isSelected
+                    ? 'bg-emerald-50/70 dark:bg-slate-800/90 border-2 border-emerald-600 dark:border-emerald-500 shadow-sm ring-2 ring-emerald-500/20'
+                    : 'bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-50/70 dark:hover:bg-slate-850/60 shadow-2xs'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2 mb-1.5">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-mono text-xs font-semibold text-slate-400 dark:text-slate-500 tabular-nums">
+                        #{post.posting_id}
+                      </span>
+                      <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                        {post.foodkeeper_product}
+                      </h3>
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 truncate max-w-[210px]">
+                      {post.donor_name}
+                    </p>
+                  </div>
+
+                  <span
+                    className={`px-2.5 py-1 rounded-full text-[11px] font-mono font-semibold flex items-center gap-1.5 shrink-0 tabular-nums ${
+                      isCritical
+                        ? 'bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border-2 border-rose-300 dark:border-rose-800/80'
+                        : isUrgent
+                        ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border-2 border-amber-300 dark:border-amber-800/80'
+                        : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-2 border-slate-200 dark:border-slate-700'
+                    }`}
+                  >
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full ${
+                        isCritical
+                          ? 'bg-rose-500 animate-pulse'
+                          : isUrgent
+                          ? 'bg-amber-500'
+                          : 'bg-emerald-500'
+                      }`}
+                    />
+                    {post.hours_remaining}h left
+                  </span>
+                </div>
+
+                {isSelected && (
+                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed my-2 pl-2.5 border-l-2 border-emerald-500 dark:border-emerald-400">
+                    {post.posting_text}
+                  </p>
+                )}
+
+                {/* Urgency Progress Bar */}
+                <div className="w-full h-1.5 bg-slate-200/90 dark:bg-slate-800 rounded-full overflow-hidden my-2.5">
+                  <div
+                    className={`h-full rounded-full transition-all ${
+                      isCritical
+                        ? 'bg-rose-500'
+                        : isUrgent
+                        ? 'bg-amber-500'
+                        : 'bg-emerald-600 dark:bg-emerald-500'
+                    }`}
+                    style={{ width: `${clockPct}%` }}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 font-mono tabular-nums">
+                  <span className="flex items-center gap-1.5 capitalize text-[11px]">
+                    {post.storage_state === 'refrigerated' ? (
+                      <Snowflake className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+                    ) : (
+                      <Package className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                    )}
+                    {post.storage_state}
+                  </span>
+                  <span className="text-[11px]">~{post.pallets_estimated} pallets</span>
+                </div>
+              </button>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+
   return (
-    <div className="min-h-screen flex flex-col bg-[#FAF8F5] dark:bg-stone-950 text-stone-900 dark:text-stone-100 transition-colors">
+    <div className="min-h-screen flex flex-col bg-slate-100/70 dark:bg-[#070B11] text-slate-900 dark:text-slate-100 transition-colors">
       {/* Top Coordinator Header */}
-      <header className="sticky top-0 z-30 bg-[#FAF8F5]/95 dark:bg-stone-950/95 backdrop-blur border-b border-stone-200/90 dark:border-stone-800 px-6 py-3.5">
+      <header className="sticky top-0 z-30 bg-white/95 dark:bg-[#0B0F17]/95 backdrop-blur-md border-b-2 border-slate-200 dark:border-slate-800 px-6 py-3.5 shadow-2xs">
         <div className="max-w-[1440px] mx-auto flex flex-wrap items-center justify-between gap-4">
           {/* Brand */}
           <div className="flex items-center space-x-3.5">
-            <div className="w-10 h-10 rounded-xl bg-emerald-900 dark:bg-emerald-800 text-stone-50 flex items-center justify-center shadow-sm">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 text-white flex items-center justify-center shadow-xs ring-2 ring-emerald-500/20">
               <HeartHandshake className="w-5 h-5" />
             </div>
             <div>
-              <div className="flex items-center gap-2.5">
-                <h1 className="text-lg font-display font-bold tracking-tight text-stone-900 dark:text-stone-50">
+              <div className="flex items-center gap-2">
+                <h1 className="text-base font-bold tracking-tight text-slate-900 dark:text-slate-50 font-display">
                   Atlanta Food Rescue Dispatch
                 </h1>
-                <span className="hidden sm:inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-emerald-900/10 dark:bg-emerald-500/15 text-emerald-900 dark:text-emerald-300">
-                  Metro Coordinator Desk
+                <span className="hidden sm:inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold tracking-wide bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 uppercase">
+                  Live Desk
                 </span>
               </div>
-              <p className="text-xs text-stone-500 dark:text-stone-400">
-                Real-time perishable matching &amp; cold-chain verification
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Real-time perishable rescue matching &amp; cold-chain safety verification
               </p>
             </div>
           </div>
 
-          {/* Center View Switcher (2 clean tabs) */}
-          <div className="flex items-center bg-stone-200/70 dark:bg-stone-900 p-1 rounded-xl border border-stone-300/60 dark:border-stone-800">
+          {/* Center View Switcher */}
+          <div className="flex items-center bg-slate-200/80 dark:bg-slate-800/90 p-1 rounded-xl border-2 border-slate-300 dark:border-slate-700 shadow-inner">
             <button
               onClick={() => setActiveTab('broker')}
-              className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
                 activeTab === 'broker'
-                  ? 'bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100 shadow-sm'
-                  : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
+                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100/60 dark:hover:bg-slate-700/50'
               }`}
             >
-              Live Dispatch Queue
+              <span>📋</span>
+              <span>Live Dispatch Queue</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('map')}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                activeTab === 'map'
+                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100/60 dark:hover:bg-slate-700/50'
+              }`}
+            >
+              <span>🗺️</span>
+              <span>Spatial Equity Map</span>
             </button>
             <button
               onClick={() => setActiveTab('equity')}
-              className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
                 activeTab === 'equity'
-                  ? 'bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100 shadow-sm'
-                  : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
+                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100/60 dark:hover:bg-slate-700/50'
               }`}
             >
-              Neighborhood Equity
+              <span>📊</span>
+              <span>Neighborhood Equity</span>
             </button>
           </div>
 
@@ -269,7 +541,7 @@ export const App: React.FC = () => {
           <div className="flex items-center space-x-2.5">
             <button
               onClick={() => setIsNewModalOpen(true)}
-              className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-emerald-900 hover:bg-emerald-950 text-white dark:bg-emerald-700 dark:hover:bg-emerald-600 flex items-center gap-1.5 transition-colors shadow-sm"
+              className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-white dark:bg-slate-100 dark:hover:bg-white dark:text-slate-900 border border-slate-900 dark:border-white flex items-center gap-1.5 transition-all shadow-sm active:scale-[0.98]"
             >
               <Plus className="w-3.5 h-3.5" />
               Log Surplus Offer
@@ -277,16 +549,16 @@ export const App: React.FC = () => {
 
             <button
               onClick={() => setIsChatOpen(true)}
-              className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-white dark:bg-stone-900 text-stone-700 dark:text-stone-200 border border-stone-300 dark:border-stone-700 hover:border-emerald-700 dark:hover:border-emerald-500 flex items-center gap-1.5 transition-all shadow-sm"
+              className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-2 border-slate-300 dark:border-slate-700 hover:border-emerald-500 dark:hover:border-emerald-500 flex items-center gap-1.5 transition-all shadow-sm"
             >
-              <Sparkles className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" />
+              <Sparkles className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
               Ask Assistant
             </button>
 
             <button
               onClick={() => setIsDark((prev) => !prev)}
               aria-label="Toggle dark mode"
-              className="p-2 rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
+              className="p-2 rounded-xl border-2 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-750 transition-colors shadow-sm"
             >
               {isDark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4" />}
             </button>
@@ -296,164 +568,74 @@ export const App: React.FC = () => {
 
       {/* Main Content Container */}
       <main className="flex-1 max-w-[1440px] w-full mx-auto px-6 py-5 space-y-5">
-        {/* Compact Operational Pulse Strip */}
-        <section className="bg-white dark:bg-stone-900 border border-stone-200/90 dark:border-stone-800 rounded-2xl px-5 py-3 shadow-sm flex flex-wrap items-center justify-between gap-4">
+        {/* Modern Operational Pulse Strip */}
+        <section className="bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-700 rounded-2xl px-5 py-3.5 shadow-sm dark:shadow-slate-950/40 ring-1 ring-slate-900/5 dark:ring-white/10 flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-wrap items-center gap-6 text-xs">
             <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse" />
-              <span className="text-stone-500 dark:text-stone-400">Urgent (&le;8h):</span>
-              <span className="font-mono font-bold text-stone-900 dark:text-stone-100">
+              <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse" />
+              <span className="text-slate-500 dark:text-slate-400 font-medium">Urgent (&le;8h):</span>
+              <span className="font-mono font-bold text-slate-900 dark:text-slate-100 tabular-nums">
                 {urgentCount} of {postings.length} offers
               </span>
             </div>
 
-            <div className="hidden sm:block h-4 w-px bg-stone-200 dark:bg-stone-800" />
+            <div className="hidden sm:block h-4 w-px bg-slate-300 dark:border-slate-700" />
 
             <div className="flex items-center gap-2">
-              <Package className="w-3.5 h-3.5 text-emerald-800 dark:text-emerald-400" />
-              <span className="text-stone-500 dark:text-stone-400">Ready to Move:</span>
-              <span className="font-mono font-bold text-stone-900 dark:text-stone-100">
+              <Package className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span className="text-slate-500 dark:text-slate-400 font-medium">Ready to Move:</span>
+              <span className="font-mono font-bold text-slate-900 dark:text-slate-100 tabular-nums">
                 {totalPallets.toFixed(1)} pallets
               </span>
             </div>
 
-            <div className="hidden md:block h-4 w-px bg-stone-200 dark:bg-stone-800" />
+            <div className="hidden md:block h-4 w-px bg-slate-300 dark:border-slate-700" />
 
             <div className="flex items-center gap-2">
-              <ShieldAlert className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-              <span className="text-stone-500 dark:text-stone-400">Safety Guardrail:</span>
-              <span className="font-mono font-semibold text-amber-800 dark:text-amber-300">
+              <ShieldAlert className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
+              <span className="text-slate-500 dark:text-slate-400 font-medium">Safety Guardrail:</span>
+              <span className="font-mono font-semibold text-amber-700 dark:text-amber-300 tabular-nums">
                 {decoysCaughtCount} unsafe decoys blocked
               </span>
             </div>
 
-            <div className="hidden lg:block h-4 w-px bg-stone-200 dark:bg-stone-800" />
+            <div className="hidden lg:block h-4 w-px bg-slate-300 dark:border-slate-700" />
 
             <div className="flex items-center gap-2">
-              <MapPin className="w-3.5 h-3.5 text-emerald-800 dark:text-emerald-400" />
-              <span className="text-stone-500 dark:text-stone-400">Transit-Dependent Reach:</span>
-              <span className="font-mono font-bold text-emerald-800 dark:text-emerald-400">
+              <MapPin className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span className="text-slate-500 dark:text-slate-400 font-medium">Transit-Dependent Reach:</span>
+              <span className="font-mono font-bold text-emerald-700 dark:text-emerald-400 tabular-nums">
                 {matchedNoVehiclePct}% no-vehicle tracts
               </span>
-              <span className="text-[11px] text-stone-400">(vs. 13% ATL avg)</span>
+              <span className="text-[11px] text-slate-400">(vs. 13% ATL avg)</span>
             </div>
           </div>
         </section>
 
-        {/* Tab 1: Calm 2-Column Coordinator Dispatch View */}
+        {/* Tab 1: Dispatch View */}
         {activeTab === 'broker' && (
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
-            {/* Left Column: Incoming Rescue Queue (4 cols) */}
-            <div className="xl:col-span-4 bg-white dark:bg-stone-900 border border-stone-200/90 dark:border-stone-800 rounded-2xl shadow-sm overflow-hidden">
-              <div className="px-5 py-4 border-b border-stone-200/80 dark:border-stone-800 flex items-center justify-between bg-[#F6F3EE]/60 dark:bg-stone-900">
-                <div>
-                  <h2 className="text-base font-display font-semibold text-stone-900 dark:text-stone-100">
-                    Incoming Rescue Queue
-                  </h2>
-                  <p className="text-xs text-stone-500 dark:text-stone-400">
-                    Select an offer to review its recommended recipient
-                  </p>
-                </div>
-                <span className="px-2.5 py-1 text-xs font-mono font-semibold rounded-full bg-stone-200/80 dark:bg-stone-800 text-stone-700 dark:text-stone-300">
-                  {postings.length} active
-                </span>
-              </div>
-
-              <div className="divide-y divide-stone-200/70 dark:divide-stone-800/80">
-                {postings.map((post) => {
-                  const isSelected = post.posting_id === selectedPostingId;
-                  const isCritical = post.hours_remaining <= 6;
-                  const clockPct = Math.min(100, Math.max(14, (post.hours_remaining / 24) * 100));
-
-                  return (
-                    <button
-                      key={post.posting_id}
-                      onClick={() => setSelectedPostingId(post.posting_id)}
-                      className={`w-full text-left p-4 transition-all ${
-                        isSelected
-                          ? 'bg-[#F3EFEA] dark:bg-emerald-950/25 border-l-4 border-l-emerald-800 dark:border-l-emerald-500'
-                          : 'hover:bg-stone-50 dark:hover:bg-stone-800/40'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-2 mb-1">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono text-xs font-semibold text-stone-400 dark:text-stone-500">
-                              #{post.posting_id}
-                            </span>
-                            <h3 className="text-sm font-semibold text-stone-900 dark:text-stone-100">
-                              {post.foodkeeper_product}
-                            </h3>
-                          </div>
-                          <p className="text-xs text-stone-500 dark:text-stone-400 truncate max-w-[230px] mt-0.5">
-                            {post.donor_name}
-                          </p>
-                        </div>
-
-                        <span
-                          className={`px-2.5 py-1 rounded-full text-xs font-mono font-semibold flex items-center gap-1 shrink-0 ${
-                            isCritical
-                              ? 'bg-red-50 text-red-800 dark:bg-red-950/70 dark:text-red-300 border border-red-200 dark:border-red-800/60'
-                              : 'bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60'
-                          }`}
-                        >
-                          <Clock className="w-3 h-3" />
-                          {post.hours_remaining}h left
-                        </span>
-                      </div>
-
-                      {isSelected && (
-                        <p className="text-xs text-stone-600 dark:text-stone-300 leading-relaxed my-2.5 pl-1 border-l-2 border-stone-300 dark:border-stone-700">
-                          {post.posting_text}
-                        </p>
-                      )}
-
-                      {/* Subtle Urgency Bar */}
-                      <div className="w-full h-1 bg-stone-200/80 dark:bg-stone-800 rounded-full overflow-hidden my-2.5">
-                        <div
-                          className={`h-full rounded-full transition-all ${
-                            isCritical
-                              ? 'bg-red-600'
-                              : post.hours_remaining <= 10
-                              ? 'bg-amber-500'
-                              : 'bg-emerald-700'
-                          }`}
-                          style={{ width: `${clockPct}%` }}
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between text-xs text-stone-500 dark:text-stone-400 font-mono">
-                        <span className="flex items-center gap-1 capitalize">
-                          <Snowflake className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" />
-                          {post.storage_state}
-                        </span>
-                        <span>~{post.pallets_estimated} pallets</span>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            {renderRescueQueue()}
 
             {/* Right Column: Focused Match Brief Card (8 cols) */}
-            <div className="xl:col-span-8 bg-white dark:bg-stone-900 border border-stone-200/90 dark:border-stone-800 rounded-2xl shadow-sm overflow-hidden">
+            <div className="xl:col-span-8 bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-700 rounded-2xl shadow-md dark:shadow-slate-950/40 ring-1 ring-slate-900/5 dark:ring-white/10 overflow-hidden">
               {isLoadingBrief || !matchBrief ? (
-                <div className="py-24 text-center text-sm text-stone-500">
+                <div className="py-24 text-center text-sm text-slate-500">
                   Evaluating recipient capacity &amp; cold-chain constraints...
                 </div>
               ) : matchBrief.status !== 'matched' || !matchBrief.primary_match ? (
                 <div className="p-8 space-y-4">
-                  <div className="p-6 rounded-2xl bg-red-50/80 dark:bg-red-950/40 border border-red-200 dark:border-red-800 space-y-3">
-                    <div className="flex items-center gap-2 text-red-800 dark:text-red-300 font-display font-semibold text-base">
+                  <div className="p-6 rounded-2xl bg-rose-50/80 dark:bg-rose-950/40 border-2 border-rose-300 dark:border-rose-800 space-y-3">
+                    <div className="flex items-center gap-2 text-rose-800 dark:text-rose-300 font-display font-semibold text-base">
                       <AlertTriangle className="w-5 h-5" />
                       No Safe Recipient Available for This Load
                     </div>
-                    <p className="text-xs text-red-700 dark:text-red-300 leading-relaxed">
+                    <p className="text-xs text-rose-700 dark:text-rose-300 leading-relaxed">
                       {matchBrief.refusal_explanation}
                     </p>
                     <button
                       onClick={handleResetExclusions}
-                      className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-white dark:bg-stone-900 text-stone-800 dark:text-stone-200 border border-stone-300 dark:border-stone-700 hover:bg-stone-100"
+                      className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 border-2 border-slate-300 dark:border-slate-700 hover:bg-slate-100"
                     >
                       Reset Declined Recipients
                     </button>
@@ -462,19 +644,19 @@ export const App: React.FC = () => {
               ) : (
                 <div>
                   {/* Active Load Context Strip */}
-                  <div className="px-6 py-3 bg-[#F6F3EE] dark:bg-stone-950/60 border-b border-stone-200/80 dark:border-stone-800 flex flex-wrap items-center justify-between gap-2 text-xs text-stone-600 dark:text-stone-400">
+                  <div className="px-6 py-3 bg-slate-100/90 dark:bg-slate-950/90 border-b-2 border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600 dark:text-slate-400">
                     <div className="flex items-center gap-2">
-                      <span className="font-mono font-semibold text-stone-800 dark:text-stone-200">
+                      <span className="font-mono font-bold text-slate-900 dark:text-slate-100 tabular-nums">
                         Offer #{matchBrief.posting.posting_id}
                       </span>
                       <span>·</span>
-                      <span className="font-medium text-stone-800 dark:text-stone-200">
+                      <span className="font-semibold text-slate-900 dark:text-slate-100">
                         {matchBrief.posting.foodkeeper_product}
                       </span>
                       <span>·</span>
                       <span>{matchBrief.posting.donor_name}</span>
                     </div>
-                    <div className="font-mono text-xs text-stone-500 dark:text-stone-400">
+                    <div className="font-mono text-xs text-slate-500 dark:text-slate-400 tabular-nums">
                       Requires {matchBrief.posting.storage_state} storage · ~
                       {matchBrief.posting.pallets_estimated} pallets
                     </div>
@@ -482,37 +664,37 @@ export const App: React.FC = () => {
 
                   <div className="p-6 space-y-6">
                     {/* Hero Recommended Recipient Header */}
-                    <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 pb-5 border-b border-stone-200/80 dark:border-stone-800">
+                    <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 pb-5 border-b-2 border-slate-200 dark:border-slate-800">
                       <div className="space-y-1.5">
                         <div className="flex flex-wrap items-center gap-2">
                           {matchBrief.is_manual_assignment ? (
-                            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-800 dark:bg-blue-950/70 dark:text-blue-300 border border-blue-200 dark:border-blue-800 flex items-center gap-1">
-                              <Sparkles className="w-3.5 h-3.5" />
+                            <span className="px-3 py-1 rounded-full text-[11px] font-semibold bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border-2 border-indigo-300 dark:border-indigo-800 flex items-center gap-1.5">
+                              <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
                               Assigned by Coordinator &amp; Verified by Agent
                             </span>
                           ) : (
-                            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 flex items-center gap-1">
-                              <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span className="px-3 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border-2 border-emerald-300 dark:border-emerald-800 flex items-center gap-1.5">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                               Recommended Match
                             </span>
                           )}
-                          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300">
+                          <span className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300/80 dark:border-slate-700">
                             {matchBrief.primary_match.archetype_label}
                           </span>
                         </div>
 
-                        <h2 className="text-2xl font-display font-bold text-stone-900 dark:text-stone-50">
+                        <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50 font-display">
                           {matchBrief.primary_match.name}
                         </h2>
 
-                        <p className="text-xs text-stone-600 dark:text-stone-400 flex items-center gap-1.5">
-                          <MapPin className="w-3.5 h-3.5 text-emerald-800 dark:text-emerald-400 shrink-0" />
+                        <p className="text-xs text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
+                          <MapPin className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
                           <span>
                             {matchBrief.primary_match.street}, {matchBrief.primary_match.city},{' '}
                             {matchBrief.primary_match.state} {matchBrief.primary_match.zip_code}
                           </span>
                           <span>·</span>
-                          <span className="font-medium text-stone-800 dark:text-stone-200">
+                          <span className="font-semibold text-slate-800 dark:text-slate-200">
                             {matchBrief.primary_match.tract.neighborhood}
                           </span>
                         </p>
@@ -523,18 +705,27 @@ export const App: React.FC = () => {
                         {/* Prominent Update Recipient Button calling Primary Agent */}
                         <button
                           onClick={() => setIsUpdateModalOpen(true)}
-                          className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-emerald-900 hover:bg-emerald-950 text-white dark:bg-emerald-700 dark:hover:bg-emerald-600 flex items-center gap-1.5 transition-all shadow-sm hover:scale-[1.02]"
+                          className="px-4 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-500 flex items-center gap-1.5 transition-all shadow-sm hover:shadow active:scale-[0.98]"
                           title="Choose or change the recipient for this surplus posting using the primary agent"
                         >
-                          <Sparkles className="w-3.5 h-3.5 text-emerald-300" />
+                          <Sparkles className="w-3.5 h-3.5 text-emerald-200" />
                           Update Recipient
+                        </button>
+
+                        <button
+                          onClick={() => setActiveTab('map')}
+                          className="px-3.5 py-2 rounded-xl text-xs font-semibold border-2 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-1.5 transition-all shadow-sm"
+                          title="View dispatch route and recipient on Atlanta spatial equity map"
+                        >
+                          <MapIcon className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                          View on Map
                         </button>
 
                         {matchBrief.is_manual_assignment && (
                           <button
                             onClick={handleResetManualAssignment}
                             title="Reset to default algorithmic recommendation"
-                            className="px-3 py-2 rounded-xl text-xs font-medium border border-stone-300 dark:border-stone-700 text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 flex items-center gap-1 transition-colors"
+                            className="px-3 py-2 rounded-xl text-xs font-medium border-2 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-1 transition-colors shadow-2xs"
                           >
                             <RotateCcw className="w-3.5 h-3.5" />
                             Reset to Recommended
@@ -545,7 +736,7 @@ export const App: React.FC = () => {
                           <button
                             onClick={handleResetExclusions}
                             title="Reset declined recipients"
-                            className="px-3 py-2 rounded-xl text-xs font-medium border border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 flex items-center gap-1 transition-colors"
+                            className="px-3 py-2 rounded-xl text-xs font-medium border-2 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-1 transition-colors shadow-2xs"
                           >
                             <RotateCcw className="w-3.5 h-3.5" />
                             Reset ({excludedByPosting[selectedPostingId]?.length})
@@ -554,7 +745,7 @@ export const App: React.FC = () => {
                         <button
                           onClick={handleTheySaidNo}
                           disabled={isDeclining}
-                          className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-stone-100 hover:bg-stone-200 dark:bg-stone-800 dark:hover:bg-stone-700 text-stone-800 dark:text-stone-200 border border-stone-300/80 dark:border-stone-700 flex items-center gap-1.5 transition-all disabled:opacity-50"
+                          className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border-2 border-slate-300 dark:border-slate-700 flex items-center gap-1.5 transition-all disabled:opacity-50 shadow-2xs"
                         >
                           <ArrowRight className="w-3.5 h-3.5 text-amber-600" />
                           They Said No — Next Option
@@ -564,47 +755,49 @@ export const App: React.FC = () => {
 
                     {/* Recipient Assignment Notification Banner */}
                     {assignmentMessage && (
-                      <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-900 dark:text-emerald-200 flex items-center gap-2">
+                      <div className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 border-2 border-emerald-300 dark:border-emerald-800 text-xs text-emerald-900 dark:text-emerald-200 flex items-center gap-2 shadow-2xs">
                         <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                        <span>{assignmentMessage}</span>
+                        <span className="font-medium">{assignmentMessage}</span>
                       </div>
                     )}
-                    {matchBrief.is_manual_assignment && matchBrief.coordinator_note && !assignmentMessage && (
-                      <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 text-xs text-blue-900 dark:text-blue-200 flex items-center gap-2">
-                        <span className="font-semibold shrink-0">Coordinator Note:</span>
-                        <span>{matchBrief.coordinator_note}</span>
-                      </div>
-                    )}
+                    {matchBrief.is_manual_assignment &&
+                      matchBrief.coordinator_note &&
+                      !assignmentMessage && (
+                        <div className="p-3.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border-2 border-indigo-300 dark:border-indigo-800 text-xs text-indigo-900 dark:text-indigo-200 flex items-center gap-2 shadow-2xs">
+                          <span className="font-semibold shrink-0">Coordinator Note:</span>
+                          <span>{matchBrief.coordinator_note}</span>
+                        </div>
+                      )}
 
                     {/* 3 Clean Verification Tiles */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       {/* Tile 1: Clock & Pickup */}
-                      <div className="p-4 rounded-xl bg-[#FAF8F5] dark:bg-stone-800/40 border border-stone-200/80 dark:border-stone-800 space-y-1.5">
-                        <div className="text-[11px] font-semibold uppercase tracking-wider text-stone-500 dark:text-stone-400 flex items-center gap-1.5">
-                          <Clock className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
+                      <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-850 border-2 border-slate-200 dark:border-slate-750 shadow-2xs space-y-1.5">
+                        <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
                           Dispatch Clock
                         </div>
-                        <div className="text-lg font-mono font-bold text-stone-900 dark:text-stone-100">
+                        <div className="text-xl font-mono font-bold text-slate-900 dark:text-slate-100 tabular-nums">
                           {matchBrief.clock.hours_remaining}h window
                         </div>
-                        <p className="text-xs text-stone-600 dark:text-stone-400">
+                        <p className="text-xs text-slate-600 dark:text-slate-400">
                           Pickup within {matchBrief.primary_match.pickup_window_hours}h leaves{' '}
-                          <span className="font-mono font-semibold text-emerald-800 dark:text-emerald-400">
+                          <span className="font-mono font-semibold text-emerald-700 dark:text-emerald-400 tabular-nums">
                             +{matchBrief.clock.estimated_margin_hours}h buffer
                           </span>
                         </p>
                       </div>
 
                       {/* Tile 2: Storage & Capacity */}
-                      <div className="p-4 rounded-xl bg-[#FAF8F5] dark:bg-stone-800/40 border border-stone-200/80 dark:border-stone-800 space-y-1.5">
-                        <div className="text-[11px] font-semibold uppercase tracking-wider text-stone-500 dark:text-stone-400 flex items-center gap-1.5">
-                          <Truck className="w-3.5 h-3.5 text-emerald-800 dark:text-emerald-400" />
+                      <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-850 border-2 border-slate-200 dark:border-slate-750 shadow-2xs space-y-1.5">
+                        <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                          <Truck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                           Capacity &amp; Cold Chain
                         </div>
-                        <div className="text-lg font-mono font-bold text-stone-900 dark:text-stone-100 capitalize">
+                        <div className="text-xl font-mono font-bold text-slate-900 dark:text-slate-100 capitalize tabular-nums">
                           {matchBrief.capacity_check?.cold_storage} · {matchBrief.capacity_check?.max_pallets} plt max
                         </div>
-                        <p className="text-xs text-stone-600 dark:text-stone-400">
+                        <p className="text-xs text-slate-600 dark:text-slate-400">
                           {matchBrief.capacity_check?.refrigerated_transport
                             ? 'On-site refrigerated van ready'
                             : 'Verified loading dock intake'}
@@ -612,33 +805,33 @@ export const App: React.FC = () => {
                       </div>
 
                       {/* Tile 3: Community Impact */}
-                      <div className="p-4 rounded-xl bg-[#FAF8F5] dark:bg-stone-800/40 border border-stone-200/80 dark:border-stone-800 space-y-1.5">
-                        <div className="text-[11px] font-semibold uppercase tracking-wider text-stone-500 dark:text-stone-400 flex items-center gap-1.5">
-                          <Users className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                      <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-850 border-2 border-slate-200 dark:border-slate-750 shadow-2xs space-y-1.5">
+                        <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                          <Users className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
                           Community Reach
                         </div>
-                        <div className="text-lg font-mono font-bold text-emerald-800 dark:text-emerald-400">
+                        <div className="text-xl font-mono font-bold text-emerald-700 dark:text-emerald-400 tabular-nums">
                           {(matchBrief.primary_match.tract.no_vehicle_rate * 100).toFixed(1)}% no-vehicle
                         </div>
-                        <p className="text-xs text-stone-600 dark:text-stone-400">
+                        <p className="text-xs text-slate-600 dark:text-slate-400">
                           {matchBrief.capacity_check?.weekly_households} households/wk ·{' '}
                           {(matchBrief.primary_match.tract.poverty_rate * 100).toFixed(1)}% poverty
                         </p>
                       </div>
                     </div>
 
-                    {/* Concise Why This Match */}
+                    {/* Why This Match */}
                     <div className="space-y-2.5">
-                      <h3 className="text-xs font-semibold uppercase tracking-wider text-stone-500 dark:text-stone-400">
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                         Why This Recipient Was Chosen
                       </h3>
-                      <ul className="space-y-2 text-xs text-stone-700 dark:text-stone-300">
+                      <ul className="space-y-2 text-xs text-slate-700 dark:text-slate-300">
                         {matchBrief.why_them?.slice(0, 2).map((reason, idx) => (
                           <li
                             key={idx}
-                            className="flex items-start gap-2.5 bg-[#FAF8F5] dark:bg-stone-800/40 p-3 rounded-xl border border-stone-200/70 dark:border-stone-800"
+                            className="flex items-start gap-2.5 bg-slate-50 dark:bg-slate-850 p-3.5 rounded-xl border-2 border-slate-200 dark:border-slate-750 shadow-2xs"
                           >
-                            <CheckCircle2 className="w-4 h-4 text-emerald-700 dark:text-emerald-400 shrink-0 mt-0.5" />
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
                             <span className="leading-relaxed">{reason}</span>
                           </li>
                         ))}
@@ -646,9 +839,9 @@ export const App: React.FC = () => {
                     </div>
 
                     {/* Ready-to-Send Coordinator Outreach Note */}
-                    <div className="p-4 rounded-2xl bg-emerald-950/[0.03] dark:bg-emerald-950/20 border border-emerald-800/20 dark:border-emerald-800/50 space-y-3">
+                    <div className="p-4 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/30 border-2 border-emerald-300 dark:border-emerald-700/80 shadow-2xs space-y-3">
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="text-xs font-semibold text-stone-800 dark:text-stone-200">
+                        <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
                           Ready-to-Send Dispatch Note
                         </span>
                         <div className="flex items-center gap-2.5">
@@ -656,13 +849,13 @@ export const App: React.FC = () => {
                             onClick={() =>
                               handleAskInChat('Write the outreach message for this match')
                             }
-                            className="text-xs font-medium text-emerald-800 dark:text-emerald-400 hover:underline"
+                            className="text-xs font-medium text-emerald-700 dark:text-emerald-400 hover:underline"
                           >
                             Customize in Assistant
                           </button>
                           <button
                             onClick={handleCopyOutreach}
-                            className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-900 hover:bg-emerald-950 text-white dark:bg-emerald-700 dark:hover:bg-emerald-600 flex items-center gap-1.5 transition-colors shadow-sm"
+                            className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1.5 transition-colors shadow-2xs"
                           >
                             {copiedOutreach ? (
                               <>
@@ -678,7 +871,7 @@ export const App: React.FC = () => {
                           </button>
                         </div>
                       </div>
-                      <p className="text-xs font-mono text-stone-700 dark:text-stone-300 bg-white dark:bg-stone-900 p-3.5 rounded-xl border border-stone-200/80 dark:border-stone-800 leading-relaxed">
+                      <p className="text-xs font-mono text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-900 p-3.5 rounded-xl border-2 border-emerald-200/90 dark:border-emerald-800/90 leading-relaxed shadow-2xs">
                         {matchBrief.outreach_draft}
                       </p>
                     </div>
@@ -686,51 +879,51 @@ export const App: React.FC = () => {
                     {/* Progressive Disclosure Accordions: Backups & Blocked Decoys */}
                     <div className="space-y-3 pt-1">
                       {/* Accordion 1: Backups */}
-                      <div className="border border-stone-200/90 dark:border-stone-800 rounded-xl overflow-hidden">
+                      <div className="border-2 border-slate-300 dark:border-slate-700 rounded-xl overflow-hidden shadow-2xs">
                         <button
                           type="button"
                           onClick={() => setShowBackups((prev) => !prev)}
-                          className="w-full px-4 py-3 bg-[#FAF8F5] dark:bg-stone-800/50 hover:bg-stone-100/80 dark:hover:bg-stone-800 flex items-center justify-between text-left transition-colors"
+                          className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/70 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-between text-left transition-colors"
                         >
                           <div className="flex items-center gap-2">
-                            <span className="text-xs font-semibold text-stone-800 dark:text-stone-200">
+                            <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
                               Backup Options if Primary Declines
                             </span>
-                            <span className="px-2 py-0.5 text-[11px] font-mono rounded-full bg-stone-200/80 dark:bg-stone-700 text-stone-700 dark:text-stone-300">
+                            <span className="px-2 py-0.5 text-[11px] font-mono rounded-full bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-600 tabular-nums">
                               {matchBrief.backups.length} verified
                             </span>
                           </div>
                           {showBackups ? (
-                            <ChevronUp className="w-4 h-4 text-stone-500" />
+                            <ChevronUp className="w-4 h-4 text-slate-500" />
                           ) : (
-                            <ChevronDown className="w-4 h-4 text-stone-500" />
+                            <ChevronDown className="w-4 h-4 text-slate-500" />
                           )}
                         </button>
 
                         {showBackups && (
-                          <div className="p-4 bg-white dark:bg-stone-900 grid grid-cols-1 sm:grid-cols-2 gap-3 border-t border-stone-200/80 dark:border-stone-800">
+                          <div className="p-4 bg-white dark:bg-slate-900 grid grid-cols-1 sm:grid-cols-2 gap-3 border-t-2 border-slate-200 dark:border-slate-800">
                             {matchBrief.backups.map((b, idx) => (
                               <div
                                 key={b.recipient_id}
-                                className="p-3.5 rounded-xl bg-[#FAF8F5] dark:bg-stone-800/40 border border-stone-200/80 dark:border-stone-800 flex flex-col justify-between gap-2"
+                                className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-850 border-2 border-slate-200 dark:border-slate-750 flex flex-col justify-between gap-2 shadow-2xs"
                               >
                                 <div>
                                   <div className="flex items-center justify-between gap-2">
-                                    <span className="text-xs font-semibold text-stone-900 dark:text-stone-100">
+                                    <span className="text-xs font-semibold text-slate-900 dark:text-slate-100">
                                       #{idx + 2} · {b.name}
                                     </span>
                                   </div>
-                                  <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5">
+                                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
                                     {b.street} · {b.tract.neighborhood}
                                   </p>
                                 </div>
-                                <div className="pt-2 border-t border-stone-200/60 dark:border-stone-700/60 flex items-center justify-between text-[11px]">
-                                  <span className="font-mono text-stone-600 dark:text-stone-400">
+                                <div className="pt-2 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between text-[11px]">
+                                  <span className="font-mono text-slate-600 dark:text-slate-400 tabular-nums">
                                     {b.cold_storage} · max {b.max_pallets} plt
                                   </span>
                                   <button
                                     onClick={() => handlePromoteBackup(b.recipient_id)}
-                                    className="font-semibold text-emerald-800 dark:text-emerald-400 hover:underline"
+                                    className="font-semibold text-emerald-700 dark:text-emerald-400 hover:underline"
                                   >
                                     Promote &rarr;
                                   </button>
@@ -743,31 +936,31 @@ export const App: React.FC = () => {
 
                       {/* Accordion 2: Blocked Near-Miss Decoys */}
                       {matchBrief.rejected_decoys.length > 0 && (
-                        <div className="border border-amber-200/90 dark:border-amber-900/60 rounded-xl overflow-hidden">
+                        <div className="border-2 border-amber-300 dark:border-amber-700 rounded-xl overflow-hidden shadow-2xs">
                           <button
                             type="button"
                             onClick={() => setShowDecoys((prev) => !prev)}
-                            className="w-full px-4 py-3 bg-amber-50/60 dark:bg-amber-950/25 hover:bg-amber-50 dark:hover:bg-amber-950/40 flex items-center justify-between text-left transition-colors"
+                            className="w-full px-4 py-3 bg-amber-50/70 dark:bg-amber-950/30 hover:bg-amber-100/70 dark:hover:bg-amber-950/50 flex items-center justify-between text-left transition-colors"
                           >
                             <div className="flex items-center gap-2">
-                              <ShieldAlert className="w-4 h-4 text-amber-700 dark:text-amber-400" />
+                              <ShieldAlert className="w-4 h-4 text-amber-600 dark:text-amber-400" />
                               <span className="text-xs font-semibold text-amber-900 dark:text-amber-200">
                                 Safety Guardrail: Blocked Near-Miss Decoys
                               </span>
-                              <span className="px-2 py-0.5 text-[11px] font-mono rounded-full bg-amber-200/70 dark:bg-amber-900/60 text-amber-900 dark:text-amber-200">
+                              <span className="px-2 py-0.5 text-[11px] font-mono rounded-full bg-amber-200 dark:bg-amber-900/80 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700 tabular-nums">
                                 {matchBrief.rejected_decoys.length} filtered out
                               </span>
                             </div>
                             {showDecoys ? (
-                              <ChevronUp className="w-4 h-4 text-amber-700 dark:text-amber-400" />
+                              <ChevronUp className="w-4 h-4 text-amber-600 dark:text-amber-400" />
                             ) : (
-                              <ChevronDown className="w-4 h-4 text-amber-700 dark:text-amber-400" />
+                              <ChevronDown className="w-4 h-4 text-amber-600 dark:text-amber-400" />
                             )}
                           </button>
 
                           {showDecoys && (
-                            <div className="p-4 bg-white dark:bg-stone-900 space-y-2.5 border-t border-amber-200/70 dark:border-amber-900/50">
-                              <div className="flex items-center justify-between text-xs text-stone-500 dark:text-stone-400 mb-1">
+                            <div className="p-4 bg-white dark:bg-slate-900 space-y-2.5 border-t-2 border-amber-200 dark:border-amber-800">
+                              <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-1">
                                 <span>
                                   High text similarity, but automatically blocked due to hard storage or capacity limits:
                                 </span>
@@ -783,13 +976,13 @@ export const App: React.FC = () => {
                               {matchBrief.rejected_decoys.map((decoy) => (
                                 <div
                                   key={decoy.recipient_id}
-                                  className="p-3 rounded-xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/70 dark:border-amber-800/50 text-xs"
+                                  className="p-3 rounded-xl bg-amber-50/70 dark:bg-amber-950/30 border-2 border-amber-300/80 dark:border-amber-800/70 text-xs shadow-2xs"
                                 >
                                   <div className="flex items-center justify-between font-semibold text-amber-950 dark:text-amber-200">
                                     <span>
                                       {decoy.name} ({decoy.archetype_label})
                                     </span>
-                                    <span className="font-mono text-[11px] text-amber-800 dark:text-amber-300">
+                                    <span className="font-mono text-[11px] text-amber-700 dark:text-amber-300 tabular-nums">
                                       {(decoy.semantic_similarity * 100).toFixed(0)}% text match
                                     </span>
                                   </div>
@@ -810,7 +1003,30 @@ export const App: React.FC = () => {
           </div>
         )}
 
-        {/* Tab 2: Neighborhood Equity View */}
+        {/* Tab 2: Spatial Equity Map View */}
+        {activeTab === 'map' && (
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+            {renderRescueQueue()}
+
+            {/* Right Column: Google Maps Spatial Equity View (8 cols) */}
+            <div className="xl:col-span-8 h-[760px] min-h-[550px]">
+              <SpatialEquityMap
+                postings={postings}
+                selectedPosting={activePosting}
+                currentMatch={matchBrief}
+                recipients={allRecipients}
+                onSelectPosting={setSelectedPostingId}
+                onOpenUpdateModal={(id) => {
+                  setPreselectedRecipientId(id || null);
+                  setIsUpdateModalOpen(true);
+                }}
+                isDark={isDark}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Tab 3: Neighborhood Equity View */}
         {activeTab === 'equity' && (
           <EquityAuditChart auditData={equityAudit} isDark={isDark} />
         )}
@@ -828,20 +1044,20 @@ export const App: React.FC = () => {
 
       {/* Modal: Log New Retail Surplus Offer */}
       {isNewModalOpen && (
-        <div className="fixed inset-0 z-50 bg-stone-950/40 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-2xl max-w-lg w-full p-6 shadow-xl space-y-4">
-            <div className="flex items-center justify-between border-b border-stone-200 dark:border-stone-800 pb-3">
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl ring-1 ring-slate-900/10 dark:ring-white/10 space-y-4">
+            <div className="flex items-center justify-between border-b-2 border-slate-200 dark:border-slate-800 pb-3">
               <div>
-                <h3 className="text-lg font-display font-semibold text-stone-900 dark:text-stone-100">
+                <h3 className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-100 font-display">
                   Log New Retail Surplus Offer
                 </h3>
-                <p className="text-xs text-stone-500 dark:text-stone-400">
+                <p className="text-xs text-slate-500 dark:text-slate-400">
                   Enter grocer donor details to match against verified Atlanta recipients
                 </p>
               </div>
               <button
                 onClick={() => setIsNewModalOpen(false)}
-                className="p-1.5 text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 rounded-lg"
+                className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -850,7 +1066,7 @@ export const App: React.FC = () => {
             <form onSubmit={handleCreatePosting} className="space-y-4 text-xs">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-medium text-stone-700 dark:text-stone-300 mb-1">
+                  <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">
                     Product Category
                   </label>
                   <select
@@ -858,7 +1074,7 @@ export const App: React.FC = () => {
                     onChange={(e) =>
                       setNewForm((prev) => ({ ...prev, foodkeeper_product: e.target.value }))
                     }
-                    className="w-full px-3 py-2 rounded-xl border border-stone-300 dark:border-stone-700 bg-[#FAF8F5] dark:bg-stone-950 text-stone-900 dark:text-stone-100"
+                    className="w-full px-3 py-2 rounded-xl border-2 border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 focus:border-emerald-500 focus:outline-none"
                   >
                     <option value="Spinach">Spinach / Leafy Greens</option>
                     <option value="Milk">Milk / Cultured Dairy</option>
@@ -870,7 +1086,7 @@ export const App: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block font-medium text-stone-700 dark:text-stone-300 mb-1">
+                  <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">
                     Storage Requirement
                   </label>
                   <select
@@ -878,7 +1094,7 @@ export const App: React.FC = () => {
                     onChange={(e) =>
                       setNewForm((prev) => ({ ...prev, storage_state: e.target.value }))
                     }
-                    className="w-full px-3 py-2 rounded-xl border border-stone-300 dark:border-stone-700 bg-[#FAF8F5] dark:bg-stone-950 text-stone-900 dark:text-stone-100"
+                    className="w-full px-3 py-2 rounded-xl border-2 border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 focus:border-emerald-500 focus:outline-none"
                   >
                     <option value="refrigerated">Refrigerated (36–40°F)</option>
                     <option value="pantry">Pantry / Ambient</option>
@@ -887,7 +1103,7 @@ export const App: React.FC = () => {
               </div>
 
               <div>
-                <label className="block font-medium text-stone-700 dark:text-stone-300 mb-1">
+                <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">
                   Donor Grocer / Store
                 </label>
                 <input
@@ -896,13 +1112,13 @@ export const App: React.FC = () => {
                   onChange={(e) =>
                     setNewForm((prev) => ({ ...prev, donor_name: e.target.value }))
                   }
-                  className="w-full px-3 py-2 rounded-xl border border-stone-300 dark:border-stone-700 bg-[#FAF8F5] dark:bg-stone-950 text-stone-900 dark:text-stone-100"
+                  className="w-full px-3 py-2 rounded-xl border-2 border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 focus:border-emerald-500 focus:outline-none"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-medium text-stone-700 dark:text-stone-300 mb-1">
+                  <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">
                     Estimated Pallets
                   </label>
                   <input
@@ -917,11 +1133,11 @@ export const App: React.FC = () => {
                         pallets_estimated: parseFloat(e.target.value) || 1,
                       }))
                     }
-                    className="w-full px-3 py-2 rounded-xl border border-stone-300 dark:border-stone-700 bg-[#FAF8F5] dark:bg-stone-950 text-stone-900 dark:text-stone-100 font-mono"
+                    className="w-full px-3 py-2 rounded-xl border-2 border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-mono tabular-nums focus:border-emerald-500 focus:outline-none"
                   />
                 </div>
                 <div>
-                  <label className="block font-medium text-stone-700 dark:text-stone-300 mb-1">
+                  <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">
                     Pickup Deadline (Hours)
                   </label>
                   <input
@@ -936,13 +1152,13 @@ export const App: React.FC = () => {
                         hours_available: parseFloat(e.target.value) || 6,
                       }))
                     }
-                    className="w-full px-3 py-2 rounded-xl border border-stone-300 dark:border-stone-700 bg-[#FAF8F5] dark:bg-stone-950 text-stone-900 dark:text-stone-100 font-mono"
+                    className="w-full px-3 py-2 rounded-xl border-2 border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-mono tabular-nums focus:border-emerald-500 focus:outline-none"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block font-medium text-stone-700 dark:text-stone-300 mb-1">
+                <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">
                   Offer Notes
                 </label>
                 <textarea
@@ -951,7 +1167,7 @@ export const App: React.FC = () => {
                   onChange={(e) =>
                     setNewForm((prev) => ({ ...prev, posting_text: e.target.value }))
                   }
-                  className="w-full px-3 py-2 rounded-xl border border-stone-300 dark:border-stone-700 bg-[#FAF8F5] dark:bg-stone-950 text-stone-900 dark:text-stone-100"
+                  className="w-full px-3 py-2 rounded-xl border-2 border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 focus:border-emerald-500 focus:outline-none"
                 />
               </div>
 
@@ -959,14 +1175,14 @@ export const App: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsNewModalOpen(false)}
-                  className="px-4 py-2 rounded-xl border border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300"
+                  className="px-4 py-2 rounded-xl border-2 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors font-medium"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmittingPosting}
-                  className="px-4 py-2 rounded-xl bg-emerald-900 hover:bg-emerald-950 text-white font-semibold disabled:opacity-50"
+                  className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white dark:bg-emerald-600 dark:hover:bg-emerald-500 font-semibold disabled:opacity-50 shadow-sm"
                 >
                   {isSubmittingPosting ? 'Finding Match...' : 'Post & Find Match'}
                 </button>
@@ -980,10 +1196,14 @@ export const App: React.FC = () => {
       {activePosting && (
         <UpdateRecipientModal
           isOpen={isUpdateModalOpen}
-          onClose={() => setIsUpdateModalOpen(false)}
+          onClose={() => {
+            setIsUpdateModalOpen(false);
+            setPreselectedRecipientId(null);
+          }}
           posting={activePosting}
           currentRecipient={matchBrief?.primary_match || null}
           backups={matchBrief?.backups || []}
+          initialRecipientId={preselectedRecipientId}
           onRecipientUpdated={(updatedBrief, msg) => {
             setMatchBrief(updatedBrief);
             if (msg) {

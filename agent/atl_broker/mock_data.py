@@ -564,6 +564,8 @@ SURPLUS_POSTINGS: list[dict] = [
         "posting_id": 1,
         "track": "RETAIL",
         "donor_name": "Midtown Market Grocer (#104 - Ponce)",
+        "donor_lat": 33.7719,
+        "donor_lon": -84.3665,
         "posting_text": (
             "18 cases (~1.5 pallets) of triple-washed bagged organic spinach and spring mix in 38°F "
             "produce cooler. Best-by tomorrow; must clear backroom dock within 6 hours before evening truck."
@@ -581,6 +583,8 @@ SURPLUS_POSTINGS: list[dict] = [
         "posting_id": 2,
         "track": "RETAIL",
         "donor_name": "Peachtree Corner Neighborhood Grocer",
+        "donor_lat": 33.9698,
+        "donor_lon": -84.2215,
         "posting_text": (
             "12 crates (~2 pallets) of whole & 2% gallon milk plus single-serve Greek yogurt cups, "
             "held at 37°F. 48 hours until printed sell-by date; store requests pickup within 8 hours."
@@ -598,6 +602,8 @@ SURPLUS_POSTINGS: list[dict] = [
         "posting_id": 3,
         "track": "RETAIL",
         "donor_name": "Grant Park Artisan Bakery & Grocer",
+        "donor_lat": 33.7370,
+        "donor_lon": -84.3715,
         "posting_text": (
             "140 loaves of day-old multigrain bread, brioche rolls, and bagged Kaiser buns (~1.5 pallets). "
             "Individually bagged at ambient temperature; pickup within 14 hours."
@@ -615,6 +621,8 @@ SURPLUS_POSTINGS: list[dict] = [
         "posting_id": 4,
         "track": "RETAIL",
         "donor_name": "Buckhead Fresh Kitchen & Deli",
+        "donor_lat": 33.8400,
+        "donor_lon": -84.3780,
         "posting_text": (
             "85 individually wrapped turkey & cheddar deli sandwiches, chicken Caesar wraps, and quinoa "
             "protein bowls (~1 pallet) chilled at 38°F. Must be picked up and served within 4 hours."
@@ -633,6 +641,8 @@ SURPLUS_POSTINGS: list[dict] = [
         "posting_id": 5,
         "track": "ESSENTIALS",
         "donor_name": "Perimeter Pharmacy & Regional Distribution Center",
+        "donor_lat": 33.9280,
+        "donor_lon": -84.3410,
         "posting_text": (
             "16 cases (~1.5 pallets) of factory-sealed infant formula powder & ready-to-feed pediatric "
             "bottles (lot-verified, 9 months to expiration). Dock clearance needed within 10 hours."
@@ -650,6 +660,8 @@ SURPLUS_POSTINGS: list[dict] = [
         "posting_id": 6,
         "track": "ESSENTIALS",
         "donor_name": "Midtown Wholesale Club (#082)",
+        "donor_lat": 33.7850,
+        "donor_lon": -84.4100,
         "posting_text": (
             "4 pallets of unopened disposable diapers (Sizes 1, 2, 3, and 4) and hypoallergenic baby "
             "wipes from packaging transition. Needs loading dock / box truck pickup within 18 hours."
@@ -667,6 +679,8 @@ SURPLUS_POSTINGS: list[dict] = [
         "posting_id": 7,
         "track": "ESSENTIALS",
         "donor_name": "Emory-Midtown Outpatient Nutrition Supply",
+        "donor_lat": 33.7690,
+        "donor_lon": -84.3870,
         "posting_text": (
             "9 cases (~1 pallet) of cold-chain pediatric & maternal clinical nutritional shakes held at "
             "39°F. Requires verified medical or commercial refrigeration and pickup within 5 hours."
