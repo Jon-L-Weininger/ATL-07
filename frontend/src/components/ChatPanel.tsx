@@ -259,11 +259,11 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
       />
 
       {/* Slide-over panel */}
-      <aside className="relative z-10 w-full max-w-md bg-white dark:bg-[#0F172A] border-l border-slate-200 dark:border-slate-800 flex flex-col h-full shadow-2xl">
+      <aside className="relative z-10 w-full max-w-md bg-white dark:bg-[#0F172A] border-l-2 border-slate-300 dark:border-slate-700 flex flex-col h-full shadow-2xl">
         {/* Header */}
-        <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/80 dark:bg-slate-900/90">
+        <div className="px-5 py-4 border-b-2 border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/80 dark:bg-slate-900/90">
           <div className="flex items-center space-x-3">
-            <div className="w-9 h-9 rounded-xl bg-emerald-600/10 dark:bg-emerald-500/15 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+            <div className="w-9 h-9 rounded-xl bg-emerald-600/10 dark:bg-emerald-500/15 flex items-center justify-center text-emerald-600 dark:text-emerald-400 border border-emerald-600/20 dark:border-emerald-500/30">
               <Sparkles className="w-4 h-4" />
             </div>
             <div>
@@ -271,7 +271,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                 <h2 className="text-base font-display font-semibold text-slate-900 dark:text-slate-100">
                   Dispatch Assistant
                 </h2>
-                <span className="px-2 py-0.5 text-[11px] font-mono font-medium rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                <span className="px-2 py-0.5 text-[11px] font-mono font-medium rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-300 border-2 border-emerald-300/80 dark:border-emerald-800">
                   Offer #{activePostingId}
                 </span>
               </div>
@@ -308,14 +308,14 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         </div>
 
         {/* Quick Question Pills */}
-        <div className="px-4 py-2.5 border-b border-slate-200/80 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/50 flex items-center gap-1.5 overflow-x-auto">
+        <div className="px-4 py-2.5 border-b-2 border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/50 flex items-center gap-1.5 overflow-x-auto">
           <MessageSquare className="w-3.5 h-3.5 text-slate-400 shrink-0" />
           {COORDINATOR_STARTER_QUESTIONS.map((q, i) => (
             <button
               key={i}
               disabled={isLoading}
               onClick={() => handleSend(null, q)}
-              className="text-xs whitespace-nowrap px-3 py-1 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-emerald-500 dark:hover:border-emerald-500 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors disabled:opacity-50"
+              className="text-xs whitespace-nowrap px-3 py-1 rounded-full bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-emerald-500 dark:hover:border-emerald-500 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors shadow-2xs disabled:opacity-50"
             >
               {q}
             </button>
@@ -347,7 +347,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
               <div className="flex flex-col space-y-2 max-w-[86%]">
                 {msg.thoughts && (
                   <details
-                    className="text-xs bg-slate-100 dark:bg-slate-800/70 rounded-xl p-2.5 text-slate-600 dark:text-slate-400 border border-slate-200/80 dark:border-slate-700/60 cursor-pointer transition-all"
+                    className="text-xs bg-slate-100 dark:bg-slate-800/70 rounded-xl p-2.5 text-slate-600 dark:text-slate-400 border-2 border-slate-200 dark:border-slate-700 cursor-pointer transition-all shadow-2xs"
                     open={msg.isStreaming && !msg.content}
                   >
                     <summary
@@ -384,8 +384,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                   <div
                     className={`p-3.5 rounded-2xl text-sm leading-relaxed ${
                       msg.role === 'user'
-                        ? 'bg-slate-900 text-white dark:bg-emerald-600 rounded-tr-sm whitespace-pre-wrap shadow-sm'
-                        : 'bg-white text-slate-800 dark:bg-slate-800/90 dark:text-slate-200 border border-slate-200/80 dark:border-slate-700/70 rounded-tl-sm shadow-sm prose prose-sm dark:prose-invert max-w-none break-words'
+                        ? 'bg-slate-900 text-white dark:bg-emerald-600 rounded-tr-sm whitespace-pre-wrap shadow-sm border-2 border-slate-900 dark:border-emerald-500'
+                        : 'bg-white text-slate-800 dark:bg-slate-800/90 dark:text-slate-200 border-2 border-slate-200 dark:border-slate-700/80 rounded-tl-sm shadow-sm prose prose-sm dark:prose-invert max-w-none break-words'
                     }`}
                   >
                     {msg.role === 'user' ? (
@@ -409,7 +409,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                           key={sIdx}
                           onClick={() => handleSend(null, suggestion)}
                           disabled={isLoading}
-                          className="text-left text-xs bg-emerald-50 hover:bg-emerald-100/80 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 rounded-lg px-2.5 py-1.5 transition-colors disabled:opacity-50"
+                          className="text-left text-xs bg-emerald-50 hover:bg-emerald-100/80 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 text-emerald-800 dark:text-emerald-300 border-2 border-emerald-200 dark:border-emerald-800/70 rounded-lg px-2.5 py-1.5 transition-colors shadow-2xs disabled:opacity-50"
                         >
                           {suggestion}
                         </button>
@@ -428,7 +428,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                 <div className="w-7 h-7 rounded-full bg-emerald-500/10 text-emerald-600 dark:bg-emerald-400/15 dark:text-emerald-300 flex items-center justify-center shrink-0">
                   <Bot className="w-3.5 h-3.5" />
                 </div>
-                <div className="p-3 rounded-2xl rounded-tl-sm bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 text-slate-500 dark:text-slate-400 flex items-center space-x-2">
+                <div className="p-3 rounded-2xl rounded-tl-sm bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 flex items-center space-x-2 shadow-sm">
                   <Loader2 className="w-4 h-4 animate-spin" />
                   <span className="text-xs">Checking recipient profiles...</span>
                 </div>
@@ -440,7 +440,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         {/* Input Area */}
         <form
           onSubmit={(e) => handleSend(e)}
-          className="p-4 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
+          className="p-4 border-t-2 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
         >
           <div className="relative flex items-end">
             <textarea
@@ -456,7 +456,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
               }}
               placeholder="Ask about this match, clock margin, or backups..."
               disabled={isLoading}
-              className="w-full pl-3.5 pr-10 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/25 focus:border-emerald-600 disabled:opacity-50 transition-all resize-none overflow-y-auto max-h-32"
+              className="w-full pl-3.5 pr-10 py-2.5 bg-slate-50 dark:bg-slate-950 border-2 border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-emerald-500 disabled:opacity-50 transition-all resize-none overflow-y-auto max-h-32 shadow-2xs"
             />
             <button
               type="submit"

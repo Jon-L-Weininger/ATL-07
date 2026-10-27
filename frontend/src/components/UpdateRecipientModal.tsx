@@ -134,9 +134,9 @@ export const UpdateRecipientModal: React.FC<UpdateRecipientModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/65 backdrop-blur-sm animate-fade-in">
-      <div className="relative w-full max-w-3xl max-h-[90vh] bg-white dark:bg-[#0F172A] rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden">
+      <div className="relative w-full max-w-3xl max-h-[90vh] bg-white dark:bg-[#0F172A] rounded-2xl shadow-2xl border-2 border-slate-300 dark:border-slate-700 ring-1 ring-slate-900/10 dark:ring-white/10 flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/80 dark:bg-slate-900/80">
+        <div className="px-6 py-4 border-b-2 border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/80 dark:bg-slate-900/80">
           <div className="flex items-center space-x-3">
             <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-sm shadow-emerald-500/20">
               <Sparkles className="w-5 h-5 text-white" />
@@ -146,7 +146,7 @@ export const UpdateRecipientModal: React.FC<UpdateRecipientModalProps> = ({
                 <h2 className="text-lg font-display font-bold text-slate-900 dark:text-slate-100">
                   Update Recipient
                 </h2>
-                <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-400 border border-emerald-200/80 dark:border-emerald-800">
+                <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800">
                   Primary Agent Evaluation
                 </span>
               </div>
@@ -164,7 +164,7 @@ export const UpdateRecipientModal: React.FC<UpdateRecipientModalProps> = ({
         </div>
 
         {/* Offer Summary Bar */}
-        <div className="px-6 py-2.5 bg-slate-50 dark:bg-slate-900/60 border-b border-slate-200/80 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div className="px-6 py-2.5 bg-slate-50 dark:bg-slate-900/60 border-b-2 border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-2">
             <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
               Offer #{posting.posting_id}:
@@ -192,12 +192,12 @@ export const UpdateRecipientModal: React.FC<UpdateRecipientModalProps> = ({
           {/* Agent Feedback Alert Banner */}
           {agentFeedback && (
             <div
-              className={`p-4 rounded-xl border flex items-start gap-3 text-xs animate-shake ${
+              className={`p-4 rounded-xl border-2 flex items-start gap-3 text-xs animate-shake ${
                 agentFeedback.type === 'error'
-                  ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-800 text-rose-900 dark:text-rose-200'
+                  ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-400 dark:border-rose-800 text-rose-900 dark:text-rose-200 shadow-xs'
                   : agentFeedback.type === 'warning'
-                  ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200'
-                  : 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200'
+                  ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-400 dark:border-amber-800 text-amber-900 dark:text-amber-200 shadow-xs'
+                  : 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-400 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200 shadow-xs'
               }`}
             >
               <AlertTriangle className={`w-5 h-5 shrink-0 mt-0.5 ${
@@ -237,10 +237,10 @@ export const UpdateRecipientModal: React.FC<UpdateRecipientModalProps> = ({
                         setSelectedRecipientId(b.recipient_id);
                         setAgentFeedback(null);
                       }}
-                      className={`p-3 rounded-xl border text-left transition-all flex flex-col justify-between gap-1.5 ${
+                      className={`p-3 rounded-xl border-2 text-left transition-all flex flex-col justify-between gap-1.5 ${
                         isSelected
-                          ? 'border-emerald-600 bg-emerald-50/70 dark:bg-emerald-950/40 ring-1 ring-emerald-600'
-                          : 'border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 hover:border-emerald-400 dark:hover:border-emerald-700'
+                          ? 'border-emerald-600 bg-emerald-50/70 dark:bg-emerald-950/40 ring-2 ring-emerald-500/20 shadow-xs'
+                          : 'border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/40 hover:border-emerald-400 dark:hover:border-emerald-600 shadow-2xs'
                       }`}
                     >
                       <div className="flex items-start justify-between gap-2">
@@ -283,12 +283,12 @@ export const UpdateRecipientModal: React.FC<UpdateRecipientModalProps> = ({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search by organization name, street, ZIP, or Atlanta neighborhood..."
-                className="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                className="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-800/60 border-2 border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-emerald-500 shadow-2xs"
               />
             </div>
 
             {/* Recipient Cards Directory */}
-            <div className="max-h-60 overflow-y-auto space-y-2 border border-slate-200 dark:border-slate-800 rounded-xl p-2 bg-slate-50/50 dark:bg-slate-950/40">
+            <div className="max-h-60 overflow-y-auto space-y-2 border-2 border-slate-200 dark:border-slate-700 rounded-xl p-2.5 bg-slate-50/50 dark:bg-slate-950/40 shadow-inner">
               {isLoadingRecipients ? (
                 <div className="py-8 text-center text-xs text-slate-500 flex items-center justify-center gap-2">
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -313,10 +313,10 @@ export const UpdateRecipientModal: React.FC<UpdateRecipientModalProps> = ({
                         setSelectedRecipientId(rec.recipient_id);
                         setAgentFeedback(null);
                       }}
-                      className={`p-3 rounded-xl border text-left cursor-pointer transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-2 ${
+                      className={`p-3 rounded-xl border-2 text-left cursor-pointer transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-2 ${
                         isSelected
-                          ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-950/50 ring-1 ring-emerald-600'
-                          : 'border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-emerald-300 dark:hover:border-emerald-700'
+                          ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-950/50 ring-2 ring-emerald-500/20 shadow-xs'
+                          : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-slate-400 dark:hover:border-slate-500 shadow-2xs'
                       }`}
                     >
                       <div className="space-y-1">
@@ -376,17 +376,17 @@ export const UpdateRecipientModal: React.FC<UpdateRecipientModalProps> = ({
               onChange={(e) => setCoordinatorNote(e.target.value)}
               placeholder="e.g., Confirmed staff availability for dock intake by 5pm; prioritizing West End distribution corridor."
               rows={2}
-              className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+              className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800/60 border-2 border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-emerald-500 shadow-2xs"
             />
           </div>
 
           {/* Modal Footer */}
-          <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end gap-3">
+          <div className="pt-3 border-t-2 border-slate-200 dark:border-slate-800 flex items-center justify-end gap-3">
             <button
               type="button"
               onClick={onClose}
               disabled={isSubmitting}
-              className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              className="px-4 py-2 rounded-xl text-xs font-semibold border-2 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
             >
               Cancel
             </button>

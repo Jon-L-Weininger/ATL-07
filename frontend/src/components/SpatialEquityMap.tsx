@@ -663,11 +663,11 @@ export const SpatialEquityMap: React.FC<SpatialEquityMapProps> = ({
   };
 
   return (
-    <div className="relative w-full h-full flex flex-col bg-white dark:bg-[#0B0F17] rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+    <div className="relative w-full h-full flex flex-col bg-white dark:bg-[#0B0F17] rounded-2xl border-2 border-slate-300 dark:border-slate-700 overflow-hidden shadow-md ring-1 ring-slate-900/5 dark:ring-white/10">
       {/* Top Map Toolbar */}
-      <div className="px-5 py-3 border-b border-slate-200/80 dark:border-slate-800 bg-white/90 dark:bg-[#0F172A]/90 backdrop-blur-sm flex flex-wrap items-center justify-between gap-3 z-10">
+      <div className="px-5 py-3 border-b-2 border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-[#0F172A]/95 backdrop-blur-sm flex flex-wrap items-center justify-between gap-3 z-10">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl bg-emerald-600/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400 flex items-center justify-center shrink-0">
+          <div className="w-8 h-8 rounded-xl bg-emerald-600/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-600/20 dark:border-emerald-500/30">
             <MapPin className="w-4 h-4" />
           </div>
           <div>
@@ -675,7 +675,7 @@ export const SpatialEquityMap: React.FC<SpatialEquityMapProps> = ({
               <h2 className="text-sm font-display font-bold text-slate-900 dark:text-slate-100">
                 Spatial Dispatch &amp; Neighborhood Equity Map
               </h2>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-emerald-50 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-emerald-50 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800">
                 Google Maps API
               </span>
             </div>
@@ -688,7 +688,7 @@ export const SpatialEquityMap: React.FC<SpatialEquityMapProps> = ({
         {/* Filter & Metric Selector Controls */}
         <div className="flex flex-wrap items-center gap-2">
           {/* Demographic Layer Switcher */}
-          <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
+          <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl border-2 border-slate-300 dark:border-slate-700 shadow-2xs">
             <Layers className="w-3.5 h-3.5 text-slate-400 ml-1.5" />
             <select
               value={activeDemographicMetric}
@@ -708,12 +708,12 @@ export const SpatialEquityMap: React.FC<SpatialEquityMapProps> = ({
           </div>
 
           {/* Storage Capability Filter */}
-          <div className="flex items-center rounded-xl bg-slate-100 dark:bg-slate-800/80 p-0.5 border border-slate-200 dark:border-slate-700 text-xs">
+          <div className="flex items-center rounded-xl bg-slate-100 dark:bg-slate-800/80 p-0.5 border-2 border-slate-300 dark:border-slate-700 shadow-2xs text-xs">
             <button
               onClick={() => setStorageFilter('all')}
               className={`px-2.5 py-1 rounded-lg font-medium transition-colors ${
                 storageFilter === 'all'
-                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-xs'
+                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-xs border border-slate-200/80 dark:border-slate-600'
                   : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
               }`}
             >
@@ -723,7 +723,7 @@ export const SpatialEquityMap: React.FC<SpatialEquityMapProps> = ({
               onClick={() => setStorageFilter('cold')}
               className={`px-2.5 py-1 rounded-lg font-medium flex items-center gap-1 transition-colors ${
                 storageFilter === 'cold'
-                  ? 'bg-white dark:bg-slate-700 text-emerald-700 dark:text-emerald-300 shadow-xs'
+                  ? 'bg-white dark:bg-slate-700 text-emerald-700 dark:text-emerald-300 shadow-xs border border-slate-200/80 dark:border-slate-600'
                   : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
               }`}
             >
@@ -734,7 +734,7 @@ export const SpatialEquityMap: React.FC<SpatialEquityMapProps> = ({
               onClick={() => setStorageFilter('ambient')}
               className={`px-2.5 py-1 rounded-lg font-medium transition-colors ${
                 storageFilter === 'ambient'
-                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-xs'
+                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-xs border border-slate-200/80 dark:border-slate-600'
                   : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
               }`}
             >
@@ -746,14 +746,14 @@ export const SpatialEquityMap: React.FC<SpatialEquityMapProps> = ({
           <button
             onClick={handleFocusActiveMatch}
             title="Focus on Active Dispatch Route"
-            className="p-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:border-emerald-500 hover:text-emerald-600 transition-colors"
+            className="p-1.5 rounded-xl border-2 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:border-emerald-500 hover:text-emerald-600 transition-colors shadow-2xs"
           >
             <Focus className="w-4 h-4" />
           </button>
           <button
             onClick={handleFitAllAtlanta}
             title="Fit All Atlanta Metro"
-            className="p-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:border-emerald-500 hover:text-emerald-600 transition-colors"
+            className="p-1.5 rounded-xl border-2 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:border-emerald-500 hover:text-emerald-600 transition-colors shadow-2xs"
           >
             <Maximize2 className="w-4 h-4" />
           </button>
@@ -775,12 +775,12 @@ export const SpatialEquityMap: React.FC<SpatialEquityMapProps> = ({
             <p className="text-xs text-slate-300 max-w-md mt-1 mb-4 leading-relaxed">
               {loadError}
             </p>
-            <div className="p-3 rounded-xl bg-slate-800/80 border border-slate-700 text-xs text-slate-400 font-mono text-left max-w-md mb-4">
+            <div className="p-3 rounded-xl bg-slate-800/80 border-2 border-slate-700 text-xs text-slate-400 font-mono text-left max-w-md mb-4">
               Ensure <code>VITE_GOOGLE_MAPS_API_KEY</code> is set in <code>frontend/.env</code> with Maps JavaScript API enabled.
             </div>
             <button
               onClick={() => window.location.reload()}
-              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-xs font-semibold text-white transition-colors"
+              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-xs font-semibold text-white transition-colors shadow-sm"
             >
               Retry Connection
             </button>
@@ -796,14 +796,14 @@ export const SpatialEquityMap: React.FC<SpatialEquityMapProps> = ({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search recipient or neighborhood..."
-              className="w-full pl-8 pr-3 py-1.5 bg-white/95 dark:bg-[#0F172A]/95 backdrop-blur-md border border-slate-200/90 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 shadow-md focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full pl-8 pr-3 py-1.5 bg-white/95 dark:bg-[#0F172A]/95 backdrop-blur-md border-2 border-slate-300 dark:border-slate-600 rounded-xl text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 shadow-xl ring-1 ring-slate-900/10 focus:outline-none focus:border-emerald-500"
             />
           </div>
         </div>
 
         {/* Floating Map Legend (Bottom Left) */}
-        <div className="absolute bottom-4 left-4 z-20 bg-white/95 dark:bg-[#0F172A]/95 backdrop-blur-md border border-slate-200/80 dark:border-slate-800 rounded-2xl p-3 shadow-lg max-w-xs text-xs space-y-2">
-          <div className="flex items-center justify-between pb-1.5 border-b border-slate-200/60 dark:border-slate-800">
+        <div className="absolute bottom-4 left-4 z-20 bg-white/95 dark:bg-[#0F172A]/95 backdrop-blur-md border-2 border-slate-300 dark:border-slate-700 rounded-2xl p-3 shadow-xl ring-1 ring-slate-900/10 max-w-xs text-xs space-y-2">
+          <div className="flex items-center justify-between pb-1.5 border-b-2 border-slate-200/80 dark:border-slate-800">
             <span className="font-semibold text-[11px] text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
               <Layers className="w-3.5 h-3.5 text-emerald-600" />
               Dispatch &amp; Equity Legend
@@ -837,7 +837,7 @@ export const SpatialEquityMap: React.FC<SpatialEquityMapProps> = ({
 
           {/* Demographic Gradient Bar */}
           {activeDemographicMetric !== 'none' && (
-            <div className="pt-1 border-t border-slate-200/60 dark:border-slate-800">
+            <div className="pt-1 border-t-2 border-slate-200/80 dark:border-slate-800">
               <div className="text-[10px] text-slate-500 dark:text-slate-400 mb-1 flex items-center justify-between">
                 <span>
                   {activeDemographicMetric === 'no_vehicle_rate'
@@ -861,9 +861,9 @@ export const SpatialEquityMap: React.FC<SpatialEquityMapProps> = ({
 
         {/* Floating Active Match Summary Card (Top Right) */}
         {selectedPosting && currentMatch?.primary_match && (
-          <div className="absolute top-3 right-3 z-20 bg-white/95 dark:bg-[#0F172A]/95 backdrop-blur-md border border-slate-200/80 dark:border-slate-800 rounded-2xl p-3.5 shadow-lg max-w-sm hidden sm:block">
+          <div className="absolute top-3 right-3 z-20 bg-white/95 dark:bg-[#0F172A]/95 backdrop-blur-md border-2 border-slate-300 dark:border-slate-700 rounded-2xl p-3.5 shadow-xl ring-1 ring-slate-900/10 max-w-sm hidden sm:block">
             <div className="flex items-center justify-between gap-2 mb-2">
-              <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-200/70 dark:border-emerald-800">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border-2 border-emerald-300/80 dark:border-emerald-800">
                 Active Rescue Route
               </span>
               <span className="text-xs font-mono font-bold text-slate-700 dark:text-slate-300">
@@ -897,7 +897,7 @@ export const SpatialEquityMap: React.FC<SpatialEquityMapProps> = ({
               </div>
             </div>
 
-            <div className="mt-2.5 pt-2 border-t border-slate-200/60 dark:border-slate-800 flex items-center justify-between text-[11px]">
+            <div className="mt-2.5 pt-2 border-t-2 border-slate-200/80 dark:border-slate-800 flex items-center justify-between text-[11px]">
               <span className="text-slate-500">
                 {selectedPosting.foodkeeper_product} ({selectedPosting.pallets_estimated} plt)
               </span>
