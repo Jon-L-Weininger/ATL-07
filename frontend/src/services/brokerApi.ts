@@ -51,6 +51,8 @@ export interface SurplusPosting {
   posting_id: number;
   track: 'RETAIL' | 'ESSENTIALS' | 'FARM';
   donor_name: string;
+  donor_lat?: number;
+  donor_lon?: number;
   posting_text: string;
   foodkeeper_product: string;
   storage_state: 'refrigerated' | 'pantry' | 'frozen';
@@ -266,5 +268,10 @@ export async function fetchEquityAudit(track: string = 'ALL'): Promise<EquityAud
   const { data } = await api.get<EquityAuditResponse>('/equity-audit', {
     params: { track },
   });
+  return data;
+}
+
+export async function fetchCensusTracts(): Promise<{ count: number; tracts: TractDemographics[] }> {
+  const { data } = await api.get<{ count: number; tracts: TractDemographics[] }>('/demographics/tracts');
   return data;
 }

@@ -254,28 +254,28 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     <div className="fixed inset-0 z-50 flex justify-end">
       {/* Subtle backdrop */}
       <div
-        className="fixed inset-0 bg-stone-950/25 dark:bg-black/50 backdrop-blur-[1px] transition-opacity"
+        className="fixed inset-0 bg-slate-950/40 dark:bg-black/60 backdrop-blur-[2px] transition-opacity"
         onClick={onClose}
       />
 
       {/* Slide-over panel */}
-      <aside className="relative z-10 w-full max-w-md bg-[#FAF8F5] dark:bg-stone-900 border-l border-stone-200 dark:border-stone-800 flex flex-col h-full shadow-2xl">
+      <aside className="relative z-10 w-full max-w-md bg-white dark:bg-[#0F172A] border-l border-slate-200 dark:border-slate-800 flex flex-col h-full shadow-2xl">
         {/* Header */}
-        <div className="px-5 py-4 border-b border-stone-200/80 dark:border-stone-800 flex items-center justify-between bg-white/80 dark:bg-stone-900/90">
+        <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/80 dark:bg-slate-900/90">
           <div className="flex items-center space-x-3">
-            <div className="w-9 h-9 rounded-xl bg-emerald-900/10 dark:bg-emerald-500/15 flex items-center justify-center text-emerald-800 dark:text-emerald-300">
+            <div className="w-9 h-9 rounded-xl bg-emerald-600/10 dark:bg-emerald-500/15 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
               <Sparkles className="w-4 h-4" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-base font-display font-semibold text-stone-900 dark:text-stone-100">
+                <h2 className="text-base font-display font-semibold text-slate-900 dark:text-slate-100">
                   Dispatch Assistant
                 </h2>
-                <span className="px-2 py-0.5 text-[11px] font-mono font-medium rounded-full bg-emerald-50 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800">
+                <span className="px-2 py-0.5 text-[11px] font-mono font-medium rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
                   Offer #{activePostingId}
                 </span>
               </div>
-              <p className="text-xs text-stone-500 dark:text-stone-400 truncate max-w-[250px]">
+              <p className="text-xs text-slate-500 dark:text-slate-400 truncate max-w-[250px]">
                 Active load: {activeProductLabel}
               </p>
             </div>
@@ -293,14 +293,14 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                 ])
               }
               title="Reset conversation"
-              className="p-2 text-stone-500 hover:text-stone-800 dark:text-stone-400 dark:hover:text-stone-200 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
+              className="p-2 text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
             >
               <RotateCcw className="w-4 h-4" />
             </button>
             <button
               onClick={onClose}
               title="Close assistant"
-              className="p-2 text-stone-500 hover:text-stone-800 dark:text-stone-400 dark:hover:text-stone-200 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
+              className="p-2 text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
             >
               <X className="w-4 h-4" />
             </button>
@@ -308,14 +308,14 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         </div>
 
         {/* Quick Question Pills */}
-        <div className="px-4 py-2.5 border-b border-stone-200/70 dark:border-stone-800 bg-stone-100/60 dark:bg-stone-950/50 flex items-center gap-1.5 overflow-x-auto">
-          <MessageSquare className="w-3.5 h-3.5 text-stone-400 shrink-0" />
+        <div className="px-4 py-2.5 border-b border-slate-200/80 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/50 flex items-center gap-1.5 overflow-x-auto">
+          <MessageSquare className="w-3.5 h-3.5 text-slate-400 shrink-0" />
           {COORDINATOR_STARTER_QUESTIONS.map((q, i) => (
             <button
               key={i}
               disabled={isLoading}
               onClick={() => handleSend(null, q)}
-              className="text-xs whitespace-nowrap px-3 py-1 rounded-full bg-white dark:bg-stone-800 border border-stone-200/90 dark:border-stone-700 text-stone-700 dark:text-stone-300 hover:border-emerald-700 dark:hover:border-emerald-500 hover:text-emerald-800 dark:hover:text-emerald-300 transition-colors disabled:opacity-50"
+              className="text-xs whitespace-nowrap px-3 py-1 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-emerald-500 dark:hover:border-emerald-500 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors disabled:opacity-50"
             >
               {q}
             </button>
@@ -323,7 +323,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         </div>
 
         {/* Messages Area */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+        <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-slate-50/50 dark:bg-[#0B0F17]/50">
           {messages.map((msg, idx) => (
             <div
               key={idx}
@@ -334,8 +334,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
               <div
                 className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
                   msg.role === 'user'
-                    ? 'bg-emerald-900 text-white dark:bg-emerald-700'
-                    : 'bg-emerald-900/10 text-emerald-800 dark:bg-emerald-400/15 dark:text-emerald-300'
+                    ? 'bg-slate-900 text-white dark:bg-emerald-600'
+                    : 'bg-emerald-500/10 text-emerald-600 dark:bg-emerald-400/15 dark:text-emerald-300'
                 }`}
               >
                 {msg.role === 'user' ? (
@@ -347,11 +347,11 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
               <div className="flex flex-col space-y-2 max-w-[86%]">
                 {msg.thoughts && (
                   <details
-                    className="text-xs bg-stone-100 dark:bg-stone-800/70 rounded-xl p-2.5 text-stone-600 dark:text-stone-400 border border-stone-200/80 dark:border-stone-700/60 cursor-pointer transition-all"
+                    className="text-xs bg-slate-100 dark:bg-slate-800/70 rounded-xl p-2.5 text-slate-600 dark:text-slate-400 border border-slate-200/80 dark:border-slate-700/60 cursor-pointer transition-all"
                     open={msg.isStreaming && !msg.content}
                   >
                     <summary
-                      className={`font-medium text-stone-700 dark:text-stone-300 select-none outline-none truncate max-w-xs ${
+                      className={`font-medium text-slate-700 dark:text-slate-300 select-none outline-none truncate max-w-xs ${
                         msg.isStreaming && !msg.content ? 'animate-pulse' : ''
                       }`}
                     >
@@ -370,7 +370,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                         return lastLine || 'Checking constraints...';
                       })()}
                     </summary>
-                    <div className="mt-2 pt-2 border-t border-stone-200/60 dark:border-stone-700/60 prose prose-xs dark:prose-invert max-w-none leading-relaxed break-words opacity-90 font-mono text-[11px]">
+                    <div className="mt-2 pt-2 border-t border-slate-200/60 dark:border-slate-700/60 prose prose-xs dark:prose-invert max-w-none leading-relaxed break-words opacity-90 font-mono text-[11px]">
                       <ErrorBoundary>
                         <ReactMarkdown remarkPlugins={[remarkGfm]}>
                           {msg.thoughts}
@@ -384,8 +384,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                   <div
                     className={`p-3.5 rounded-2xl text-sm leading-relaxed ${
                       msg.role === 'user'
-                        ? 'bg-emerald-900 text-white dark:bg-emerald-800 rounded-tr-sm whitespace-pre-wrap'
-                        : 'bg-white text-stone-800 dark:bg-stone-800/90 dark:text-stone-200 border border-stone-200/80 dark:border-stone-700/70 rounded-tl-sm shadow-sm prose prose-sm dark:prose-invert max-w-none break-words'
+                        ? 'bg-slate-900 text-white dark:bg-emerald-600 rounded-tr-sm whitespace-pre-wrap shadow-sm'
+                        : 'bg-white text-slate-800 dark:bg-slate-800/90 dark:text-slate-200 border border-slate-200/80 dark:border-slate-700/70 rounded-tl-sm shadow-sm prose prose-sm dark:prose-invert max-w-none break-words'
                     }`}
                   >
                     {msg.role === 'user' ? (
@@ -409,7 +409,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                           key={sIdx}
                           onClick={() => handleSend(null, suggestion)}
                           disabled={isLoading}
-                          className="text-left text-xs bg-emerald-50/80 hover:bg-emerald-100/80 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 text-emerald-900 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800/60 rounded-lg px-2.5 py-1.5 transition-colors disabled:opacity-50"
+                          className="text-left text-xs bg-emerald-50 hover:bg-emerald-100/80 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 rounded-lg px-2.5 py-1.5 transition-colors disabled:opacity-50"
                         >
                           {suggestion}
                         </button>
@@ -425,10 +425,10 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
               (!messages[messages.length - 1].content &&
                 !messages[messages.length - 1].thoughts)) && (
               <div className="flex items-start space-x-2.5">
-                <div className="w-7 h-7 rounded-full bg-emerald-900/10 text-emerald-800 dark:bg-emerald-400/15 dark:text-emerald-300 flex items-center justify-center shrink-0">
+                <div className="w-7 h-7 rounded-full bg-emerald-500/10 text-emerald-600 dark:bg-emerald-400/15 dark:text-emerald-300 flex items-center justify-center shrink-0">
                   <Bot className="w-3.5 h-3.5" />
                 </div>
-                <div className="p-3 rounded-2xl rounded-tl-sm bg-white dark:bg-stone-800 border border-stone-200/80 dark:border-stone-700 text-stone-500 dark:text-stone-400 flex items-center space-x-2">
+                <div className="p-3 rounded-2xl rounded-tl-sm bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 text-slate-500 dark:text-slate-400 flex items-center space-x-2">
                   <Loader2 className="w-4 h-4 animate-spin" />
                   <span className="text-xs">Checking recipient profiles...</span>
                 </div>
@@ -440,7 +440,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         {/* Input Area */}
         <form
           onSubmit={(e) => handleSend(e)}
-          className="p-4 border-t border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900"
+          className="p-4 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
         >
           <div className="relative flex items-end">
             <textarea
@@ -456,13 +456,13 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
               }}
               placeholder="Ask about this match, clock margin, or backups..."
               disabled={isLoading}
-              className="w-full pl-3.5 pr-10 py-2.5 bg-[#FAF8F5] dark:bg-stone-950 border border-stone-300 dark:border-stone-700 rounded-xl text-sm text-stone-900 dark:text-stone-100 placeholder-stone-400 dark:placeholder-stone-500 focus:outline-none focus:ring-2 focus:ring-emerald-700/25 focus:border-emerald-700 disabled:opacity-50 transition-all resize-none overflow-y-auto max-h-32"
+              className="w-full pl-3.5 pr-10 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/25 focus:border-emerald-600 disabled:opacity-50 transition-all resize-none overflow-y-auto max-h-32"
             />
             <button
               type="submit"
               disabled={!input.trim() || isLoading}
               aria-label="Send message"
-              className="absolute right-2 bottom-2 p-1.5 text-stone-400 hover:text-emerald-800 dark:hover:text-emerald-400 disabled:opacity-40 transition-colors"
+              className="absolute right-2 bottom-2 p-1.5 text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 disabled:opacity-40 transition-colors"
             >
               <Send className="w-4 h-4" />
             </button>
