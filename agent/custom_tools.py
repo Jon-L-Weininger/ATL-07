@@ -7,7 +7,6 @@ and multi-recipient pallet load-splitting.
 
 from typing import Any
 
-
 CONTRADICTION_PHRASES = (
     "no refrigeration of any kind",
     "dry storage only",

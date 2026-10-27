@@ -15,15 +15,32 @@
 import contextlib
 import os
 from collections.abc import AsyncIterator
+from pathlib import Path
 
 from a2a.server.tasks import InMemoryTaskStore
 from dotenv import load_dotenv
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from google.adk.cli.fast_api import get_fast_api_app
 from google.adk.runners import Runner
 
 from agent.app_utils import services
 from agent.app_utils.a2a import attach_a2a_routes
+from agent.server import (
+    api_create_posting,
+    api_equity_audit,
+    api_get_demographic_tracts,
+    api_get_fulfilments,
+    api_get_postings,
+    api_get_recipients,
+    api_match_brief,
+    api_reset_posting_recipient,
+    api_status,
+    api_submit_fulfilment,
+    api_update_posting_recipient,
+    chat_endpoint,
+)
 
 load_dotenv()
 allow_origins = (
@@ -68,6 +85,38 @@ app: FastAPI = get_fast_api_app(
 )
 app.title = "a4i-food-broker"
 app.description = "API for interacting with the Agent a4i-food-broker"
+
+# Register ATL-07 Coordinator Console API endpoints on the unified FastAPI app
+app.add_api_route("/api/status", api_status, methods=["GET"])
+app.add_api_route("/api/postings", api_get_postings, methods=["GET"])
+app.add_api_route("/api/postings", api_create_posting, methods=["POST"])
+app.add_api_route("/api/recipients", api_get_recipients, methods=["GET"])
+app.add_api_route("/api/postings/{posting_id}/recipient", api_update_posting_recipient, methods=["POST"])
+app.add_api_route("/api/postings/{posting_id}/recipient", api_reset_posting_recipient, methods=["DELETE"])
+app.add_api_route("/api/match-brief", api_match_brief, methods=["POST"])
+app.add_api_route("/api/equity-audit", api_equity_audit, methods=["GET"])
+app.add_api_route("/api/demographics/tracts", api_get_demographic_tracts, methods=["GET"])
+app.add_api_route("/api/fulfilments", api_submit_fulfilment, methods=["POST"])
+app.add_api_route("/api/fulfilments", api_get_fulfilments, methods=["GET"])
+app.add_api_route("/api/chat", chat_endpoint, methods=["POST"])
+
+# Serve the compiled React Coordinator UI (frontend/dist) at `/` when built,
+# while preserving `/dev-ui/` for the ADK Web Playground.
+_FRONTEND_DIST = Path(AGENT_DIR) / "frontend" / "dist"
+if (_FRONTEND_DIST / "index.html").is_file():
+    app.router.routes = [
+        r for r in app.router.routes if getattr(r, "path", None) != "/"
+    ]
+    if (_FRONTEND_DIST / "assets").is_dir():
+        app.mount(
+            "/assets",
+            StaticFiles(directory=str(_FRONTEND_DIST / "assets")),
+            name="frontend_assets",
+        )
+
+    @app.get("/", include_in_schema=False)
+    async def serve_coordinator_ui() -> FileResponse:
+        return FileResponse(str(_FRONTEND_DIST / "index.html"))
 
 
 # Main execution

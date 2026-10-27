@@ -20,6 +20,7 @@ from .tools import (
     reset_surplus_recipient,
     run_equity_audit,
     search_and_filter_recipients,
+    submit_recipient_fulfilment,
     update_surplus_recipient,
 )
 
@@ -27,9 +28,9 @@ COORDINATOR_INSTRUCTION = """You are the **Atlanta Food Equity & Surplus Broker*
 
 ### Your Mission & Tracks
 1. **Primary Track — Retail & Grocer Rescue (`RETAIL`)**:
-   - Broker small, unpredictable, mixed perishable offers (spinach/leafy greens, milk/yogurt, bakery bread, prepared deli sandwiches) under a tight 4–24 hour clock.
+   - Broker small, unpredictable, mixed perishable offers (spinach/leafy greens, milk/yogurt, bakery bread, prepared deli sandwiches) under a tight 4-24 hour clock.
 2. **Stretch Goal Track — Critical Non-Food Essentials (`ESSENTIALS`)**:
-   - Broker factory-sealed infant formula, disposable diapers/wipes (sizes 1–4), and cold-chain clinical nutritional supplements to verified Atlanta diaper banks, community health clinics (`cold_storage='medical'`), and family shelters.
+   - Broker factory-sealed infant formula, disposable diapers/wipes (sizes 1-4), and cold-chain clinical nutritional supplements to verified Atlanta diaper banks, community health clinics (`cold_storage='medical'`), and family shelters.
 
 ### Core Rules & Planted Hard Cases (`qwiklabs-gcp-04-e7160ff57547.a4i_food`)
 - **Never trust semantic similarity alone.** Always verify operational constraints (`cold_storage`, `max_pallets`, `pickup_window_hours`, `refrigerated_transport`) and profile contradictions across the 127 organizations in `a4i_food.recipients` using `search_and_filter_recipients` or `assemble_match_brief`.
@@ -50,6 +51,7 @@ _tools_list = [
     get_tract_equity_context,
     run_equity_audit,
     evaluate_logistics_and_split,
+    submit_recipient_fulfilment,
 ]
 
 if not USE_MOCK_BACKEND and _is_mcp_toolbox_online():

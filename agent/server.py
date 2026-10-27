@@ -13,8 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,17 +23,19 @@ from pydantic import BaseModel, Field
 from .atl_broker.config import (
     BQ_DATASET,
     GOOGLE_CLOUD_PROJECT,
-    USE_MOCK_BACKEND,
     USE_VECTOR_SEARCH,
     get_backend_status,
 )
 from .atl_broker.tools import (
+    _BQ_CACHE,
+    _ensure_bq_loaded,
     assemble_match_brief,
     get_active_postings,
     get_active_recipients,
     lookup_shelf_life_clock,
     reset_surplus_recipient,
     run_equity_audit,
+    submit_recipient_fulfilment,
     update_surplus_recipient,
 )
 
@@ -65,13 +66,20 @@ class CreatePostingRequest(BaseModel):
 class MatchBriefRequest(BaseModel):
     posting_id: int
     excluded_recipient_ids: list[int] = Field(default_factory=list)
-    override_recipient_id: Optional[int] = None
+    override_recipient_id: int | None = None
 
 
 class UpdateRecipientRequest(BaseModel):
     recipient_id: int
-    note: Optional[str] = None
-    coordinator_note: Optional[str] = None
+    note: str | None = None
+    coordinator_note: str | None = None
+
+
+class FulfilmentRequest(BaseModel):
+    posting_id: int
+    recipient_id: int
+    product_id: int | str | None = None
+    fulfilment_flg: bool = True
 
 
 class ChatMessage(BaseModel):
@@ -81,8 +89,8 @@ class ChatMessage(BaseModel):
 
 class ChatRequest(BaseModel):
     messages: list[ChatMessage]
-    active_posting_id: Optional[int] = 1
-    track: Optional[str] = "ALL"
+    active_posting_id: int | None = 1
+    track: str | None = "ALL"
 
 
 @app.get("/api/status")
@@ -94,6 +102,7 @@ def api_status() -> dict:
     status["live_counts"] = {
         "recipients": len(recipients),
         "postings": len(postings),
+        "fulfilments": len(_BQ_CACHE.get("fulfilments", [])),
     }
     return status
 
@@ -139,7 +148,7 @@ def api_create_posting(req: CreatePostingRequest) -> dict:
         "hours_available": req.hours_available,
         "shelf_life_hours": clock["foodkeeper_shelf_life_hours"],
         "hours_remaining": hours_rem,
-        "created_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "created_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "urgency_tier": urgency,
     }
     postings.insert(0, new_posting)
@@ -148,7 +157,7 @@ def api_create_posting(req: CreatePostingRequest) -> dict:
 
 
 @app.get("/api/recipients")
-def api_get_recipients(query: Optional[str] = None, storage: Optional[str] = None) -> dict:
+def api_get_recipients(query: str | None = None, storage: str | None = None) -> dict:
     recs = get_active_recipients()
     if query:
         q = query.lower().strip()
@@ -207,9 +216,38 @@ def api_equity_audit(track: str = "ALL") -> dict:
 @app.get("/api/demographics/tracts")
 def api_get_demographic_tracts() -> dict:
     from .atl_broker.mock_data import TRACT_DEMOGRAPHICS
+
     return {
         "count": len(TRACT_DEMOGRAPHICS),
         "tracts": TRACT_DEMOGRAPHICS,
+    }
+
+
+@app.post("/api/fulfilments")
+def api_submit_fulfilment(req: FulfilmentRequest) -> dict:
+    result = submit_recipient_fulfilment(
+        posting_id=req.posting_id,
+        recipient_id=req.recipient_id,
+        product_id=req.product_id,
+        fulfilled=req.fulfilment_flg,
+    )
+    brief = assemble_match_brief(req.posting_id, [])
+    postings = get_active_postings()
+    updated_posting = next((p for p in postings if p.get("posting_id") == req.posting_id), None)
+    return {
+        "result": result,
+        "brief": brief,
+        "posting": updated_posting,
+    }
+
+
+@app.get("/api/fulfilments")
+def api_get_fulfilments() -> dict:
+    _ensure_bq_loaded()
+    fulfilments = _BQ_CACHE.get("fulfilments", [])
+    return {
+        "count": len(fulfilments),
+        "fulfilments": fulfilments,
     }
 
 
@@ -392,7 +430,7 @@ Comparing the US Census ACS tracts of our **matched recipients across all 10 pos
         ]
 
     elif "essential" in q_lower or "formula" in q_lower or "diaper" in q_lower or "clinic" in q_lower or "stretch" in q_lower:
-        answer = f"""### Stretch Goal Track: 🍼 Critical Non-Food Essentials (`{BQ_DATASET}.surplus_postings` #8–#10)
+        answer = f"""### Stretch Goal Track: 🍼 Critical Non-Food Essentials (`{BQ_DATASET}.surplus_postings` #8-#10)
 
 In `{GOOGLE_CLOUD_PROJECT}.{BQ_DATASET}.surplus_postings`, postings **#8, #9, and #10** test the **Critical Non-Food Essentials** track against our 127 real + planted Atlanta recipients:
 

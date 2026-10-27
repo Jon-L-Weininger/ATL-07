@@ -15,7 +15,6 @@ While `USE_VECTOR_SEARCH=false` (before `profile_embedding` is added to `a4i_foo
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 from .config import (
     ATLANTA_METRO_BASELINE,
@@ -27,8 +26,14 @@ from .config import (
 )
 from .mock_data import (
     RECIPIENTS as MOCK_RECIPIENTS,
+)
+from .mock_data import (
     SHELF_LIFE as MOCK_SHELF_LIFE,
+)
+from .mock_data import (
     SURPLUS_POSTINGS as MOCK_SURPLUS_POSTINGS,
+)
+from .mock_data import (
     TRACT_DEMOGRAPHICS as MOCK_TRACT_DEMOGRAPHICS,
 )
 
@@ -41,6 +46,7 @@ _BQ_CACHE: dict = {
     "postings": [],
     "shelf_life": [],
     "tracts": [],
+    "fulfilments": [],
 }
 
 # Human-readable Atlanta neighborhood names for the Georgia FIPS census tracts in `a4i_food.tract_demographics`
@@ -140,7 +146,7 @@ _POSTING_DISPLAY_ENRICHMENT: dict[int, dict] = {
         "donor_lon": -84.4300,
         "pallets_estimated": 1.0,
         "created_at": "2025-05-12T08:45:00Z",
-        "foodkeeper_label": "Diapers & Wipes (Sizes 1–4)",
+        "foodkeeper_label": "Diapers & Wipes (Sizes 1-4)",
     },
     10: {
         "donor_name": "Midtown Specialty Nutrition & Hospital Supply",
@@ -168,7 +174,7 @@ def _tract_neighborhood_label(geo_id: str, city: str = "Atlanta", zip_code: str 
     return f"{area} (Tract {geo_id[-6:] if geo_id else 'N/A'})"
 
 
-def _detect_planted_role(recipient_id: int, profile_source: str, profile_text: str) -> Optional[str]:
+def _detect_planted_role(recipient_id: int, profile_source: str, profile_text: str) -> str | None:
     """Identify the specific teaching role for the 9 planted cases in `a4i_food.recipients`."""
     p_lower = (profile_text or "").lower()
     if (
@@ -290,17 +296,31 @@ def _ensure_bq_loaded() -> None:
                 }
             )
 
-        # 3. Load 10 surplus postings from `a4i_food.surplus_postings`
+        # 3. Load 10 surplus postings from `a4i_food.surplus_postings_view` (joined with Postings_Master)
         postings_sql = f"""
         SELECT posting_id, track, posting_text, foodkeeper_product,
-               storage_state, hours_available, shelf_life_hours, hours_remaining
-        FROM `{GOOGLE_CLOUD_PROJECT}.{BQ_DATASET}.surplus_postings`
+               storage_state, hours_available, shelf_life_hours, hours_remaining, Name
+        FROM `{GOOGLE_CLOUD_PROJECT}.{BQ_DATASET}.surplus_postings_view`
         ORDER BY posting_id
         """
         postings_list = []
-        for row in client.query(postings_sql, job_config=job_config):
+        try:
+            p_rows = list(client.query(postings_sql, job_config=job_config))
+        except Exception as p_err:
+            logger.warning("surplus_postings_view query failed (%s); falling back to surplus_postings table", p_err)
+            fallback_sql = f"""
+            SELECT posting_id, track, posting_text, foodkeeper_product,
+                   storage_state, hours_available, shelf_life_hours, hours_remaining
+            FROM `{GOOGLE_CLOUD_PROJECT}.{BQ_DATASET}.surplus_postings`
+            ORDER BY posting_id
+            """
+            p_rows = list(client.query(fallback_sql, job_config=job_config))
+
+        for row in p_rows:
             pid = int(row.posting_id)
             enrich = _POSTING_DISPLAY_ENRICHMENT.get(pid, {})
+            row_name = getattr(row, "Name", None) or getattr(row, "name", None)
+            donor_name = str(row_name) if row_name else enrich.get("donor_name", f"Atlanta Partner Donor #{pid}")
             fk_prod = row.foodkeeper_product or enrich.get("foodkeeper_label") or "Essentials"
             h_avail = float(row.hours_available or 8.0)
             h_rem = float(row.hours_remaining if row.hours_remaining is not None else h_avail)
@@ -311,7 +331,7 @@ def _ensure_bq_loaded() -> None:
                 {
                     "posting_id": pid,
                     "track": str(row.track or "RETAIL").upper(),
-                    "donor_name": enrich.get("donor_name", f"Atlanta Partner Donor #{pid}"),
+                    "donor_name": donor_name,
                     "donor_lat": enrich.get("donor_lat", 33.7719),
                     "donor_lon": enrich.get("donor_lon", -84.3665),
                     "posting_text": str(row.posting_text or ""),
@@ -323,8 +343,44 @@ def _ensure_bq_loaded() -> None:
                     "hours_remaining": h_rem,
                     "created_at": enrich.get("created_at", "2025-05-12T12:00:00Z"),
                     "urgency_tier": urgency,
+                    "status": "open",
+                    "fulfilment_status": "open",
+                    "fulfilled_recipient_id": None,
+                    "fulfilled_recipient_name": None,
                 }
             )
+
+        # 3b. Load existing recipient fulfilments from `a4i_food.RECIPIENT_FULFILMENTS`
+        fulfilments_list = []
+        try:
+            fulfil_sql = f"""
+            SELECT Recepient_Id, Posting_id, Product_id, Fulfiment_flg
+            FROM `{GOOGLE_CLOUD_PROJECT}.{BQ_DATASET}.RECIPIENT_FULFILMENTS`
+            """
+            for f_row in client.query(fulfil_sql, job_config=job_config):
+                fulfilments_list.append({
+                    "recipient_id": int(f_row.Recepient_Id),
+                    "posting_id": int(f_row.Posting_id),
+                    "product_id": int(f_row.Product_id) if f_row.Product_id is not None else None,
+                    "fulfilled": bool(f_row.Fulfiment_flg),
+                })
+        except Exception as f_err:
+            logger.warning("Could not query a4i_food.RECIPIENT_FULFILMENTS: %s", f_err)
+
+        rec_name_map = {r["recipient_id"]: r["name"] for r in recipients_list}
+        for p in postings_list:
+            pid = p["posting_id"]
+            active_f = next(
+                (f for f in fulfilments_list if f["posting_id"] == pid and f["fulfilled"]),
+                None
+            )
+            if active_f:
+                p["status"] = "fulfilled"
+                p["fulfilment_status"] = "fulfilled"
+                p["fulfilled_recipient_id"] = active_f["recipient_id"]
+                p["fulfilled_recipient_name"] = rec_name_map.get(
+                    active_f["recipient_id"], f"Recipient #{active_f['recipient_id']}"
+                )
 
         # 4. Load 661 USDA FoodKeeper rows from `a4i_food.shelf_life`
         shelf_sql = f"""
@@ -353,15 +409,17 @@ def _ensure_bq_loaded() -> None:
         _BQ_CACHE["recipients"] = recipients_list
         _BQ_CACHE["postings"] = postings_list
         _BQ_CACHE["shelf_life"] = shelf_list
+        _BQ_CACHE["fulfilments"] = fulfilments_list
         _BQ_CACHE["loaded"] = True
         logger.info(
-            "Loaded live BigQuery corpus from %s.%s: %d recipients, %d postings, %d shelf_life rows, %d tracts",
+            "Loaded live BigQuery corpus from %s.%s: %d recipients, %d postings, %d shelf_life rows, %d tracts, %d fulfilments",
             GOOGLE_CLOUD_PROJECT,
             BQ_DATASET,
             len(recipients_list),
             len(postings_list),
             len(shelf_list),
             len(tracts_list),
+            len(fulfilments_list),
         )
     except Exception as exc:
         logger.warning("Falling back to mock_data because BigQuery load failed: %s", exc)
@@ -380,6 +438,11 @@ def get_active_postings() -> list[dict]:
     _ensure_bq_loaded()
     if _BQ_CACHE["loaded"] and _BQ_CACHE["postings"]:
         return _BQ_CACHE["postings"]
+    for p in MOCK_SURPLUS_POSTINGS:
+        p.setdefault("status", "open")
+        p.setdefault("fulfilment_status", "open")
+        p.setdefault("fulfilled_recipient_id", None)
+        p.setdefault("fulfilled_recipient_name", None)
     return MOCK_SURPLUS_POSTINGS
 
 
@@ -700,11 +763,9 @@ def _score_semantic_similarity(posting_text: str, track: str, recipient: dict) -
 _VECTOR_SIMILARITY_CACHE: dict[str, dict[int, float]] = {}
 
 
-def _query_live_vector_search(posting_text: str) -> dict[int, float]:
-    """Run BigQuery VECTOR_SEARCH + AI.EMBED on `a4i_food.recipient_embeddings`."""
-    cache_key = (posting_text or "").strip().lower()
-    if not cache_key:
-        return {}
+def _query_live_vector_search(posting_text: str, posting_id: int | None = None) -> dict[int, float]:
+    """Run BigQuery VECTOR_SEARCH on `a4i_food.recipient_embeddings` using either posting_embeddings or AI.EMBED."""
+    cache_key = f"{posting_id}:{posting_text}".strip().lower()
     if cache_key in _VECTOR_SIMILARITY_CACHE:
         return _VECTOR_SIMILARITY_CACHE[cache_key]
 
@@ -712,32 +773,57 @@ def _query_live_vector_search(posting_text: str) -> dict[int, float]:
         from google.cloud import bigquery
 
         client = bigquery.Client(project=GOOGLE_CLOUD_PROJECT)
-        job_config = bigquery.QueryJobConfig(
-            query_parameters=[
-                bigquery.ScalarQueryParameter("posting_text", "STRING", posting_text),
-            ],
-            labels={"datacloud": "antigravity"},
-        )
-        vec_sql = f"""
-        SELECT
-          base.recipient_id,
-          ROUND(1.0 - distance, 4) AS cosine_similarity
-        FROM VECTOR_SEARCH(
-          TABLE `{GOOGLE_CLOUD_PROJECT}.{BQ_DATASET}.recipient_embeddings`,
-          'embedding',
-          (
+        if posting_id is not None and 1 <= posting_id <= 10:
+            job_config = bigquery.QueryJobConfig(
+                query_parameters=[
+                    bigquery.ScalarQueryParameter("posting_id", "INT64", posting_id),
+                ],
+                labels={"datacloud": "antigravity"},
+            )
+            vec_sql = f"""
             SELECT
-              AI.EMBED(
-                @posting_text,
-                connection_id => 'us.vertex_ai',
-                endpoint => '{EMBED_ENDPOINT}'
-              ).result AS embedding
-          ),
-          top_k => 127,
-          distance_type => 'COSINE',
-          options => '{{"use_brute_force":true}}'
-        )
-        """
+              base.recipient_id,
+              ROUND(1.0 - distance, 4) AS cosine_similarity
+            FROM VECTOR_SEARCH(
+              TABLE `{GOOGLE_CLOUD_PROJECT}.{BQ_DATASET}.recipient_embeddings`,
+              'embedding',
+              (
+                SELECT embedding
+                FROM `{GOOGLE_CLOUD_PROJECT}.{BQ_DATASET}.posting_embeddings`
+                WHERE posting_id = @posting_id
+              ),
+              top_k => 127,
+              distance_type => 'COSINE',
+              options => '{{"use_brute_force":true}}'
+            )
+            """
+        else:
+            job_config = bigquery.QueryJobConfig(
+                query_parameters=[
+                    bigquery.ScalarQueryParameter("posting_text", "STRING", posting_text),
+                ],
+                labels={"datacloud": "antigravity"},
+            )
+            vec_sql = f"""
+            SELECT
+              base.recipient_id,
+              ROUND(1.0 - distance, 4) AS cosine_similarity
+            FROM VECTOR_SEARCH(
+              TABLE `{GOOGLE_CLOUD_PROJECT}.{BQ_DATASET}.recipient_embeddings`,
+              'embedding',
+              (
+                SELECT
+                  AI.EMBED(
+                    @posting_text,
+                    connection_id => 'us.vertex_ai',
+                    endpoint => '{EMBED_ENDPOINT}'
+                  ).result AS embedding
+              ),
+              top_k => 127,
+              distance_type => 'COSINE',
+              options => '{{"use_brute_force":true}}'
+            )
+            """
         rows = list(client.query(vec_sql, job_config=job_config))
         scores = {int(r.recipient_id): float(r.cosine_similarity) for r in rows}
         _VECTOR_SIMILARITY_CACHE[cache_key] = scores
@@ -754,7 +840,8 @@ def search_and_filter_recipients(
     required_storage: str = "refrigerated",
     pallets_needed: float = 1.5,
     hours_remaining: float = 6.0,
-    excluded_recipient_ids: Optional[list[int]] = None,
+    excluded_recipient_ids: list[int] | None = None,
+    posting_id: int | None = None,
 ) -> dict:
     """Search `a4i_food.recipient_embeddings` (127 rows in BigQuery) and apply hard post-search verification.
 
@@ -771,7 +858,7 @@ def search_and_filter_recipients(
 
     vec_scores: dict[int, float] = {}
     if not USE_MOCK_BACKEND and USE_VECTOR_SEARCH:
-        vec_scores = _query_live_vector_search(posting_text)
+        vec_scores = _query_live_vector_search(posting_text, posting_id=posting_id)
 
     viable_candidates = []
     rejected_decoys = []
@@ -952,8 +1039,8 @@ _ASSIGNED_RECIPIENTS: dict[int, int] = {}
 
 def assemble_match_brief(
     posting_id: int,
-    excluded_recipient_ids: Optional[list[int]] = None,
-    override_recipient_id: Optional[int] = None,
+    excluded_recipient_ids: list[int] | None = None,
+    override_recipient_id: int | None = None,
 ) -> dict:
     """Assemble the complete Coordinator Match Brief for a surplus posting from `a4i_food.surplus_postings`."""
     postings = get_active_postings()
@@ -972,10 +1059,25 @@ def assemble_match_brief(
         pallets_needed=posting.get("pallets_estimated", 1.5),
         hours_remaining=clock_info["hours_remaining"],
         excluded_recipient_ids=excluded_recipient_ids,
+        posting_id=posting["posting_id"],
     )
 
     viable = search_res["viable_candidates"]
     decoys = search_res["rejected_decoys"]
+
+    clock_prod_id = clock_info.get("matched_product_id")
+    prod_id_val = None
+    if isinstance(clock_prod_id, int):
+        prod_id_val = clock_prod_id
+    elif isinstance(clock_prod_id, str) and clock_prod_id.strip().isdigit():
+        prod_id_val = int(clock_prod_id.strip())
+
+    fulfilment_info = {
+        "is_fulfilled": posting.get("fulfilment_status") == "fulfilled",
+        "recipient_id": posting.get("fulfilled_recipient_id"),
+        "recipient_name": posting.get("fulfilled_recipient_name"),
+        "product_id": prod_id_val,
+    }
 
     target_id = override_recipient_id or _ASSIGNED_RECIPIENTS.get(posting_id)
     excluded = set(excluded_recipient_ids or [])
@@ -994,6 +1096,7 @@ def assemble_match_brief(
             "clock": clock_info,
             "rejected_decoys": decoys,
             "backups": [],
+            "fulfilment": fulfilment_info,
         }
 
     # If an assigned or override recipient is requested, promote it to primary
@@ -1124,13 +1227,135 @@ def assemble_match_brief(
         "rejected_decoys": decoys[:3],
         "backups": backups,
         "excluded_recipient_ids": list(excluded_recipient_ids or []),
+        "fulfilment": fulfilment_info,
+    }
+
+
+def submit_recipient_fulfilment(
+    posting_id: int,
+    recipient_id: int,
+    product_id: int | str | None = None,
+    fulfilled: bool = True,
+) -> dict:
+    """Record or update a recipient dispatch/fulfilment in BigQuery `a4i_food.RECIPIENT_FULFILMENTS` and local cache.
+
+    Args:
+        posting_id: The integer surplus posting ID (1..10+).
+        recipient_id: The recipient organization ID (from `a4i_food.recipients`).
+        product_id: The FoodKeeper product ID (int or numeric str) or None/0 for non-food items.
+        fulfilled: Boolean indicating whether this posting is fulfilled/dispatched (True) or rejected/declined (False).
+    """
+    _ensure_bq_loaded()
+
+    # Resolve product_id to int or None (RECIPIENT_FULFILMENTS expects INT64)
+    product_id_int: int | None = None
+    if isinstance(product_id, int):
+        product_id_int = product_id
+    elif isinstance(product_id, str) and product_id.strip().isdigit():
+        product_id_int = int(product_id.strip())
+    elif product_id == 0 or product_id == "0":
+        product_id_int = 0
+
+    # 1. Update live BigQuery table via parameterized MERGE
+    if not USE_MOCK_BACKEND:
+        try:
+            from google.cloud import bigquery
+            client = bigquery.Client(project=GOOGLE_CLOUD_PROJECT)
+            merge_sql = f"""
+            MERGE `{GOOGLE_CLOUD_PROJECT}.{BQ_DATASET}.RECIPIENT_FULFILMENTS` T
+            USING (
+              SELECT @recipient_id AS Recepient_Id,
+                     @posting_id AS Posting_id,
+                     @product_id AS Product_id,
+                     @fulfilled AS Fulfiment_flg
+            ) S
+            ON T.Posting_id = S.Posting_id AND T.Recepient_Id = S.Recepient_Id
+            WHEN MATCHED THEN UPDATE SET Fulfiment_flg = S.Fulfiment_flg, Product_id = S.Product_id
+            WHEN NOT MATCHED THEN INSERT (Recepient_Id, Posting_id, Product_id, Fulfiment_flg)
+            VALUES (S.Recepient_Id, S.Posting_id, S.Product_id, S.Fulfiment_flg)
+            """
+            job_config = bigquery.QueryJobConfig(
+                query_parameters=[
+                    bigquery.ScalarQueryParameter("recipient_id", "INT64", int(recipient_id)),
+                    bigquery.ScalarQueryParameter("posting_id", "INT64", int(posting_id)),
+                    bigquery.ScalarQueryParameter("product_id", "INT64", product_id_int),
+                    bigquery.ScalarQueryParameter("fulfilled", "BOOL", bool(fulfilled)),
+                ],
+                labels={"datacloud": "antigravity"},
+            )
+            client.query(merge_sql, job_config=job_config).result()
+            logger.info(
+                "BigQuery MERGE successful into a4i_food.RECIPIENT_FULFILMENTS for posting=%d, recipient=%d, fulfilled=%s",
+                posting_id, recipient_id, fulfilled
+            )
+        except Exception as exc:
+            logger.error("Failed to execute MERGE on a4i_food.RECIPIENT_FULFILMENTS: %s", exc)
+
+    # 2. Update in-memory _BQ_CACHE["fulfilments"]
+    if "fulfilments" not in _BQ_CACHE:
+        _BQ_CACHE["fulfilments"] = []
+
+    existing = next(
+        (f for f in _BQ_CACHE["fulfilments"] if f.get("posting_id") == posting_id and f.get("recipient_id") == recipient_id),
+        None
+    )
+    if existing:
+        existing["fulfilled"] = fulfilled
+        existing["product_id"] = product_id_int
+    else:
+        _BQ_CACHE["fulfilments"].append({
+            "posting_id": posting_id,
+            "recipient_id": recipient_id,
+            "product_id": product_id_int,
+            "fulfilled": fulfilled,
+        })
+
+    # 3. Resolve recipient name
+    recipients = get_active_recipients()
+    matched_rec = next((r for r in recipients if r["recipient_id"] == recipient_id), None)
+    recipient_name = matched_rec["name"] if matched_rec else f"Recipient #{recipient_id}"
+
+    # 4. Update in-memory posting status
+    postings = get_active_postings()
+    for p in postings:
+        if p.get("posting_id") == posting_id:
+            if fulfilled:
+                p["status"] = "fulfilled"
+                p["fulfilment_status"] = "fulfilled"
+                p["fulfilled_recipient_id"] = recipient_id
+                p["fulfilled_recipient_name"] = recipient_name
+            else:
+                other_fulfilled = next(
+                    (f for f in _BQ_CACHE["fulfilments"] if f.get("posting_id") == posting_id and f.get("fulfilled")),
+                    None
+                )
+                if other_fulfilled:
+                    other_rec = next((r for r in recipients if r["recipient_id"] == other_fulfilled["recipient_id"]), None)
+                    p["status"] = "fulfilled"
+                    p["fulfilment_status"] = "fulfilled"
+                    p["fulfilled_recipient_id"] = other_fulfilled["recipient_id"]
+                    p["fulfilled_recipient_name"] = other_rec["name"] if other_rec else f"Recipient #{other_fulfilled['recipient_id']}"
+                else:
+                    p["status"] = "open"
+                    p["fulfilment_status"] = "open"
+                    p["fulfilled_recipient_id"] = None
+                    p["fulfilled_recipient_name"] = None
+
+    return {
+        "success": True,
+        "posting_id": posting_id,
+        "recipient_id": recipient_id,
+        "recipient_name": recipient_name,
+        "product_id": product_id_int,
+        "fulfilled": fulfilled,
+        "status": "fulfilled" if fulfilled else "open",
     }
 
 
 def update_surplus_recipient(
     posting_id: int,
     recipient_id: int,
-    note: Optional[str] = None,
+    note: str | None = None,
 ) -> dict:
     """Invoked by the primary agent or coordinator to validate and assign a specific
     community recipient to a surplus posting.
