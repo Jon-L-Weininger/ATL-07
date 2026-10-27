@@ -14,7 +14,7 @@ export const EquityAuditChart: React.FC<EquityAuditChartProps> = ({
 }) => {
   if (!auditData) {
     return (
-      <div className="bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 text-sm text-slate-500">
+      <div className="bg-white dark:bg-[#0F172A] border-2 border-slate-300 dark:border-slate-700 rounded-2xl p-6 text-sm text-slate-500 shadow-md">
         Loading Atlanta Neighborhood Equity Audit...
       </div>
     );
@@ -139,7 +139,7 @@ export const EquityAuditChart: React.FC<EquityAuditChartProps> = ({
   return (
     <div className="grid grid-cols-1 gap-6">
       {/* Main Chart Card */}
-      <div className="bg-white dark:bg-[#0F172A] border border-slate-200/90 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
+      <div className="bg-white dark:bg-[#0F172A] border-2 border-slate-300 dark:border-slate-700 rounded-2xl p-6 shadow-md ring-1 ring-slate-900/5 dark:ring-white/10">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
           <div>
             <div className="flex items-center gap-2">
@@ -153,7 +153,7 @@ export const EquityAuditChart: React.FC<EquityAuditChartProps> = ({
             </p>
           </div>
           <div className="flex items-center gap-3 shrink-0">
-            <div className="px-3.5 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200/80 dark:border-emerald-800/60">
+            <div className="px-3.5 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 border-2 border-emerald-300 dark:border-emerald-750 shadow-2xs">
               <div className="text-[10px] uppercase tracking-wider text-emerald-700 dark:text-emerald-400 font-semibold">
                 Matched No-Vehicle Avg
               </div>
@@ -162,7 +162,7 @@ export const EquityAuditChart: React.FC<EquityAuditChartProps> = ({
                 {(baseline.no_vehicle_rate * 100).toFixed(1)}% ATL
               </div>
             </div>
-            <div className="px-3.5 py-2 rounded-xl bg-amber-50 dark:bg-amber-950/50 border border-amber-200/80 dark:border-amber-800/60">
+            <div className="px-3.5 py-2 rounded-xl bg-amber-50 dark:bg-amber-950/50 border-2 border-amber-300 dark:border-amber-750 shadow-2xs">
               <div className="text-[10px] uppercase tracking-wider text-amber-700 dark:text-amber-400 font-semibold">
                 Matched Poverty Avg
               </div>
@@ -185,7 +185,7 @@ export const EquityAuditChart: React.FC<EquityAuditChartProps> = ({
 
       {/* Breakdown Table + Data Provenance */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white dark:bg-[#0F172A] border border-slate-200/90 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
+        <div className="lg:col-span-2 bg-white dark:bg-[#0F172A] border-2 border-slate-300 dark:border-slate-700 rounded-2xl p-6 shadow-md ring-1 ring-slate-900/5 dark:ring-white/10">
           <h3 className="text-base font-display font-semibold text-slate-900 dark:text-slate-100 mb-3 flex items-center gap-2">
             <MapPin className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
             Neighborhoods Reached Across Active Retail Rescues
@@ -193,7 +193,7 @@ export const EquityAuditChart: React.FC<EquityAuditChartProps> = ({
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-800 text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                <tr className="border-b-2 border-slate-200 dark:border-slate-800 text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
                   <th className="py-2.5 pr-3">Offer</th>
                   <th className="py-2.5 px-3">Matched Recipient</th>
                   <th className="py-2.5 px-3">Neighborhood</th>
@@ -202,7 +202,7 @@ export const EquityAuditChart: React.FC<EquityAuditChartProps> = ({
                   <th className="py-2.5 pl-3 text-right">Households/Wk</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200/70 dark:divide-slate-800/70 text-xs">
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-xs">
                 {postings.map((row) => (
                   <tr
                     key={row.posting_id}
@@ -237,7 +237,7 @@ export const EquityAuditChart: React.FC<EquityAuditChartProps> = ({
         </div>
 
         {/* Data Provenance Card */}
-        <div className="bg-white dark:bg-[#0F172A] border border-slate-200/90 dark:border-slate-800 rounded-2xl p-6 shadow-sm flex flex-col justify-between space-y-4">
+        <div className="bg-white dark:bg-[#0F172A] border-2 border-slate-300 dark:border-slate-700 rounded-2xl p-6 shadow-md ring-1 ring-slate-900/5 dark:ring-white/10 flex flex-col justify-between space-y-4">
           <div className="space-y-3">
             <div className="flex items-center gap-2 text-base font-display font-semibold text-slate-900 dark:text-slate-100">
               <Info className="w-4 h-4 text-amber-500" />
@@ -247,7 +247,7 @@ export const EquityAuditChart: React.FC<EquityAuditChartProps> = ({
               This dashboard combines authoritative public records with realistic operational capacity profiles:
             </p>
             <div className="space-y-2.5 text-xs">
-              <div className="p-3 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/70 dark:border-emerald-800/50">
+              <div className="p-3 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/30 border-2 border-emerald-300/80 dark:border-emerald-800">
                 <div className="font-semibold text-emerald-900 dark:text-emerald-300 flex items-center gap-1.5">
                   <ShieldCheck className="w-3.5 h-3.5" />
                   Authoritative Public Records
@@ -258,7 +258,7 @@ export const EquityAuditChart: React.FC<EquityAuditChartProps> = ({
                   <li>US Census ACS neighborhood poverty &amp; vehicle access</li>
                 </ul>
               </div>
-              <div className="p-3 rounded-xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/70 dark:border-amber-800/50">
+              <div className="p-3 rounded-xl bg-amber-50/70 dark:bg-amber-950/30 border-2 border-amber-300/80 dark:border-amber-800">
                 <div className="font-semibold text-amber-900 dark:text-amber-300">
                   Simulated Operational Profiles
                 </div>
@@ -269,7 +269,7 @@ export const EquityAuditChart: React.FC<EquityAuditChartProps> = ({
               </div>
             </div>
           </div>
-          <div className="text-[11px] text-slate-500 dark:text-slate-400 border-t border-slate-200 dark:border-slate-800 pt-3">
+          <div className="text-[11px] text-slate-500 dark:text-slate-400 border-t-2 border-slate-200 dark:border-slate-800 pt-3">
             Coverage Area: <span className="font-mono">Atlanta Metro, GA</span>
           </div>
         </div>
