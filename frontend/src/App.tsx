@@ -35,6 +35,7 @@ import {
   fetchMatchBrief,
   fetchEquityAudit,
   createPosting,
+  submitFulfilment,
 } from './services/brokerApi';
 import { ChatPanel } from './components/ChatPanel';
 import { EquityAuditChart } from './components/EquityAuditChart';
@@ -52,6 +53,7 @@ export const App: React.FC = () => {
 
   const [isLoadingBrief, setIsLoadingBrief] = useState<boolean>(false);
   const [isDeclining, setIsDeclining] = useState<boolean>(false);
+  const [isFulfilling, setIsFulfilling] = useState<boolean>(false);
   const [copiedOutreach, setCopiedOutreach] = useState<boolean>(false);
 
   // Chat Drawer state
@@ -142,6 +144,48 @@ export const App: React.FC = () => {
       ...prev,
       [selectedPostingId]: [],
     }));
+  };
+
+  const handleToggleFulfilment = async (
+    fulfill: boolean,
+    targetRecipientId?: number,
+    targetProductId?: number | string | null,
+  ) => {
+    if (!matchBrief) return;
+    const recId = targetRecipientId ?? matchBrief.primary_match?.recipient_id;
+    if (!recId) return;
+
+    setIsFulfilling(true);
+    try {
+      const prodId =
+        targetProductId !== undefined
+          ? targetProductId
+          : matchBrief.clock?.matched_product_id;
+
+      const res = await submitFulfilment(
+        selectedPostingId,
+        recId,
+        prodId,
+        fulfill,
+      );
+
+      // Update match brief with new fulfilment details
+      setMatchBrief(res.brief);
+
+      // Update postings list
+      setPostings((prev) =>
+        prev.map((p) =>
+          p.posting_id === selectedPostingId ? { ...p, ...res.posting } : p
+        )
+      );
+
+      // Refresh backend status counts
+      fetchBackendStatus().then(setBackendStatus).catch(console.error);
+    } catch (err) {
+      console.error('Failed to update fulfilment:', err);
+    } finally {
+      setIsFulfilling(false);
+    }
   };
 
   const handleCopyOutreach = () => {
@@ -481,16 +525,23 @@ export const App: React.FC = () => {
                             </span>
                           </div>
 
-                          <span
-                            className={`px-2 py-0.5 rounded text-xs font-mono font-semibold flex items-center gap-1 ${
-                              isCritical
-                                ? 'bg-red-50 text-red-700 dark:bg-red-950/70 dark:text-red-300 border border-red-200 dark:border-red-800/60'
-                                : 'bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60'
-                            }`}
-                          >
-                            <Clock className="w-3 h-3" />
-                            {post.hours_remaining}h left
-                          </span>
+                          {post.fulfilment_status === 'fulfilled' ? (
+                            <span className="px-2 py-0.5 rounded text-[11px] font-semibold flex items-center gap-1 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                              Fulfilled
+                            </span>
+                          ) : (
+                            <span
+                              className={`px-2 py-0.5 rounded text-xs font-mono font-semibold flex items-center gap-1 ${
+                                isCritical
+                                  ? 'bg-red-50 text-red-700 dark:bg-red-950/70 dark:text-red-300 border border-red-200 dark:border-red-800/60'
+                                  : 'bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60'
+                              }`}
+                            >
+                              <Clock className="w-3 h-3" />
+                              {post.hours_remaining}h left
+                            </span>
+                          )}
                         </div>
 
                         <p className="text-xs text-zinc-600 dark:text-zinc-300 line-clamp-2 leading-relaxed mb-2.5">
@@ -501,18 +552,27 @@ export const App: React.FC = () => {
                         <div className="w-full h-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden mb-2">
                           <div
                             className={`h-full rounded-full transition-all ${
-                              isCritical
+                              post.fulfilment_status === 'fulfilled'
+                                ? 'bg-emerald-500'
+                                : isCritical
                                 ? 'bg-red-500'
                                 : post.hours_remaining <= 10
                                 ? 'bg-amber-500'
                                 : 'bg-emerald-500'
                             }`}
-                            style={{ width: `${clockPct}%` }}
+                            style={{ width: `${post.fulfilment_status === 'fulfilled' ? 100 : clockPct}%` }}
                           />
                         </div>
 
                         <div className="flex items-center justify-between text-[11px] text-zinc-500 dark:text-zinc-400">
-                          <span className="truncate max-w-[200px]">{post.donor_name}</span>
+                          <div className="truncate max-w-[200px]">
+                            <span>{post.donor_name}</span>
+                            {post.fulfilment_status === 'fulfilled' && post.fulfilled_recipient_name && (
+                              <span className="ml-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
+                                → {post.fulfilled_recipient_name}
+                              </span>
+                            )}
+                          </div>
                           <div className="flex items-center gap-2 font-mono">
                             <span className="flex items-center gap-1">
                               <Snowflake className="w-3 h-3 text-blue-500" />
@@ -587,8 +647,28 @@ export const App: React.FC = () => {
                         </p>
                       </div>
 
-                      {/* "They Said No" Action Button */}
-                      <div className="flex items-center gap-2">
+                      {/* Action Buttons: Fulfill & "They Said No" */}
+                      <div className="flex flex-wrap items-center gap-2">
+                        {matchBrief.fulfilment?.is_fulfilled ? (
+                          <button
+                            onClick={() => handleToggleFulfilment(false)}
+                            disabled={isFulfilling}
+                            className="px-3.5 py-2 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm flex items-center gap-1.5 transition-all disabled:opacity-50"
+                            title="Click to reopen"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            ✓ Fulfilled → {matchBrief.fulfilment.recipient_name || 'Dispatched'} (Reopen)
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleToggleFulfilment(true)}
+                            disabled={isFulfilling || !matchBrief.primary_match}
+                            className="px-3.5 py-2 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm flex items-center gap-1.5 transition-all disabled:opacity-50"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            Confirm & Dispatch
+                          </button>
+                        )}
                         {(excludedByPosting[selectedPostingId]?.length || 0) > 0 && (
                           <button
                             onClick={handleResetExclusions}
@@ -846,6 +926,14 @@ export const App: React.FC = () => {
                               <span>Max: {b.max_pallets} plt</span>
                               <span>No-Veh: {(b.tract.no_vehicle_rate * 100).toFixed(1)}%</span>
                             </div>
+                            <button
+                              onClick={() => handleToggleFulfilment(true, b.recipient_id)}
+                              disabled={isFulfilling}
+                              className="mt-2 w-full py-1.5 px-2 rounded-md text-[11px] font-medium bg-zinc-100 hover:bg-emerald-600 hover:text-white dark:bg-zinc-800 dark:hover:bg-emerald-600 text-zinc-700 dark:text-zinc-200 transition-colors flex items-center justify-center gap-1 disabled:opacity-50"
+                            >
+                              <CheckCircle2 className="w-3 h-3" />
+                              Select & Fulfill
+                            </button>
                           </div>
                         ))}
                       </div>

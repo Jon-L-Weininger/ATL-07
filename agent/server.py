@@ -27,11 +27,14 @@ from .atl_broker.config import (
     get_backend_status,
 )
 from .atl_broker.tools import (
+    _BQ_CACHE,
+    _ensure_bq_loaded,
     assemble_match_brief,
     get_active_postings,
     get_active_recipients,
     lookup_shelf_life_clock,
     run_equity_audit,
+    submit_recipient_fulfilment,
 )
 
 app = FastAPI(
@@ -63,6 +66,13 @@ class MatchBriefRequest(BaseModel):
     excluded_recipient_ids: list[int] = Field(default_factory=list)
 
 
+class FulfilmentRequest(BaseModel):
+    posting_id: int
+    recipient_id: int
+    product_id: int | str | None = None
+    fulfilment_flg: bool = True
+
+
 class ChatMessage(BaseModel):
     role: str
     content: str
@@ -83,6 +93,7 @@ def api_status() -> dict:
     status["live_counts"] = {
         "recipients": len(recipients),
         "postings": len(postings),
+        "fulfilments": len(_BQ_CACHE.get("fulfilments", [])),
     }
     return status
 
@@ -142,6 +153,34 @@ def api_match_brief(req: MatchBriefRequest) -> dict:
 @app.get("/api/equity-audit")
 def api_equity_audit(track: str = "ALL") -> dict:
     return run_equity_audit(track)
+
+
+@app.post("/api/fulfilments")
+def api_submit_fulfilment(req: FulfilmentRequest) -> dict:
+    result = submit_recipient_fulfilment(
+        posting_id=req.posting_id,
+        recipient_id=req.recipient_id,
+        product_id=req.product_id,
+        fulfilled=req.fulfilment_flg,
+    )
+    brief = assemble_match_brief(req.posting_id, [])
+    postings = get_active_postings()
+    updated_posting = next((p for p in postings if p.get("posting_id") == req.posting_id), None)
+    return {
+        "result": result,
+        "brief": brief,
+        "posting": updated_posting,
+    }
+
+
+@app.get("/api/fulfilments")
+def api_get_fulfilments() -> dict:
+    _ensure_bq_loaded()
+    fulfilments = _BQ_CACHE.get("fulfilments", [])
+    return {
+        "count": len(fulfilments),
+        "fulfilments": fulfilments,
+    }
 
 
 async def _stream_coordinator_response(req: ChatRequest):

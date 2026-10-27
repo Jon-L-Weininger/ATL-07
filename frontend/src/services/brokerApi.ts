@@ -60,6 +60,10 @@ export interface SurplusPosting {
   hours_remaining: number;
   created_at: string;
   urgency_tier: 'critical' | 'urgent' | 'standard';
+  status?: 'open' | 'fulfilled';
+  fulfilment_status?: 'open' | 'fulfilled';
+  fulfilled_recipient_id?: number | null;
+  fulfilled_recipient_name?: string | null;
 }
 
 export interface MatchBrief {
@@ -68,6 +72,12 @@ export interface MatchBrief {
   refusal_explanation?: string;
   primary_match?: Recipient;
   why_them?: string[];
+  fulfilment?: {
+    is_fulfilled: boolean;
+    recipient_id: number | null;
+    recipient_name: string | null;
+    product_id: number | null;
+  };
   capacity_check?: {
     cold_storage: string;
     frozen_storage: boolean;
@@ -164,6 +174,7 @@ export interface BackendStatusResponse {
   live_counts?: {
     recipients: number;
     postings: number;
+    fulfilments?: number;
   };
   baseline: {
     metro: string;
@@ -226,5 +237,45 @@ export async function fetchEquityAudit(track: string = 'ALL'): Promise<EquityAud
   const { data } = await api.get<EquityAuditResponse>('/equity-audit', {
     params: { track },
   });
+  return data;
+}
+
+export async function submitFulfilment(
+  postingId: number,
+  recipientId: number,
+  productId?: number | string | null,
+  fulfilmentFlg: boolean = true,
+): Promise<{
+  result: {
+    success: boolean;
+    posting_id: number;
+    recipient_id: number;
+    recipient_name: string;
+    product_id: number | null;
+    fulfilled: boolean;
+    status: 'fulfilled' | 'open';
+  };
+  brief: MatchBrief;
+  posting: SurplusPosting;
+}> {
+  const { data } = await api.post('/fulfilments', {
+    posting_id: postingId,
+    recipient_id: recipientId,
+    product_id: productId ?? null,
+    fulfilment_flg: fulfilmentFlg,
+  });
+  return data;
+}
+
+export async function fetchFulfilments(): Promise<{
+  count: number;
+  fulfilments: Array<{
+    posting_id: number;
+    recipient_id: number;
+    product_id: number | null;
+    fulfilled: boolean;
+  }>;
+}> {
+  const { data } = await api.get('/fulfilments');
   return data;
 }

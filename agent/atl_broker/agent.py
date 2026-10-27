@@ -19,6 +19,7 @@ from .tools import (
     lookup_shelf_life_clock,
     run_equity_audit,
     search_and_filter_recipients,
+    submit_recipient_fulfilment,
 )
 
 COORDINATOR_INSTRUCTION = """You are the **Atlanta Food Equity & Surplus Broker** (`atl_surplus_broker`), an AI decision-support agent assisting a food-rescue and critical-essentials coordinator in **Atlanta, GA** at 4pm on a busy Thursday.
@@ -46,6 +47,7 @@ _tools_list = [
     get_tract_equity_context,
     run_equity_audit,
     evaluate_logistics_and_split,
+    submit_recipient_fulfilment,
 ]
 
 if not USE_MOCK_BACKEND and _is_mcp_toolbox_online():

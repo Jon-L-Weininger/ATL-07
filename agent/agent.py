@@ -38,6 +38,7 @@ from agent.atl_broker.tools import (
     lookup_shelf_life_clock,
     run_equity_audit,
     search_and_filter_recipients,
+    submit_recipient_fulfilment,
 )
 from agent.custom_tools import evaluate_logistics_and_split
 
@@ -102,6 +103,7 @@ _agent_tools = [
     lookup_shelf_life_clock,
     get_tract_equity_context,
     run_equity_audit,
+    submit_recipient_fulfilment,
 ]
 if _is_mcp_toolbox_online():
     _agent_tools.insert(0, mcp_food_broker_toolset)

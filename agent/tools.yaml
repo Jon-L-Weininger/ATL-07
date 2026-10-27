@@ -9,44 +9,53 @@ tools:
     kind: bigquery-sql
     source: a4i_bigquery
     description: >-
-      List all available surplus postings from the a4i_food.surplus_postings table,
-      ordered by posting_id. Use this when the user asks to see available postings
-      or references a posting by number or track (RETAIL, FARM, ESSENTIALS).
+      List all available surplus postings from the a4i_food.surplus_postings_view view,
+      ordered by posting_id. Includes donor Name and current fulfilment status.
     statement: |
       SELECT
-        posting_id,
-        track,
-        posting_text,
-        foodkeeper_product,
-        storage_state,
-        hours_available,
-        shelf_life_hours,
-        hours_remaining
-      FROM `qwiklabs-gcp-04-e7160ff57547.a4i_food.surplus_postings`
-      ORDER BY posting_id ASC
+        p.posting_id,
+        p.track,
+        p.Name AS donor_name,
+        p.posting_text,
+        p.foodkeeper_product,
+        p.storage_state,
+        p.hours_available,
+        p.shelf_life_hours,
+        p.hours_remaining,
+        COALESCE(f.Fulfiment_flg, FALSE) AS is_fulfilled,
+        f.Recepient_Id AS fulfilled_recipient_id
+      FROM `qwiklabs-gcp-04-e7160ff57547.a4i_food.surplus_postings_view` p
+      LEFT JOIN `qwiklabs-gcp-04-e7160ff57547.a4i_food.RECIPIENT_FULFILMENTS` f
+        ON p.posting_id = f.Posting_id AND f.Fulfiment_flg = TRUE
+      ORDER BY p.posting_id ASC
 
   get_surplus_posting:
     kind: bigquery-sql
     source: a4i_bigquery
     description: >-
       Fetch a single surplus posting by its integer posting_id (1 through 10)
-      from a4i_food.surplus_postings.
+      from a4i_food.surplus_postings_view, including donor Name and fulfilment status.
     parameters:
       - name: posting_id
         type: integer
         description: The integer posting_id (1 to 10) to retrieve.
     statement: |
       SELECT
-        posting_id,
-        track,
-        posting_text,
-        foodkeeper_product,
-        storage_state,
-        hours_available,
-        shelf_life_hours,
-        hours_remaining
-      FROM `qwiklabs-gcp-04-e7160ff57547.a4i_food.surplus_postings`
-      WHERE posting_id = @posting_id
+        p.posting_id,
+        p.track,
+        p.Name AS donor_name,
+        p.posting_text,
+        p.foodkeeper_product,
+        p.storage_state,
+        p.hours_available,
+        p.shelf_life_hours,
+        p.hours_remaining,
+        COALESCE(f.Fulfiment_flg, FALSE) AS is_fulfilled,
+        f.Recepient_Id AS fulfilled_recipient_id
+      FROM `qwiklabs-gcp-04-e7160ff57547.a4i_food.surplus_postings_view` p
+      LEFT JOIN `qwiklabs-gcp-04-e7160ff57547.a4i_food.RECIPIENT_FULFILMENTS` f
+        ON p.posting_id = f.Posting_id AND f.Fulfiment_flg = TRUE
+      WHERE p.posting_id = @posting_id
 
   search_shelf_life:
     kind: bigquery-sql
@@ -102,32 +111,33 @@ tools:
           so the recipient can receive the food before spoilage). Use 9999 if unconstrained.
     statement: |
       SELECT
-        base.recipient_id,
-        base.name,
-        base.street,
-        base.city,
-        base.state,
-        base.zip_code,
-        base.archetype,
-        base.archetype_label,
-        base.cold_storage,
-        base.frozen_storage,
-        base.loading_dock,
-        base.refrigerated_transport,
-        base.max_pallets,
-        base.pickup_window_hours,
-        base.weekly_households,
-        base.populations_served,
-        base.service_days,
-        base.profile_text,
-        base.profile_source,
-        base.tract_geo_id,
-        ROUND(base.tract_poverty_rate, 4) AS tract_poverty_rate,
-        ROUND(base.tract_assistance_rate, 4) AS tract_assistance_rate,
-        ROUND(base.tract_no_vehicle_rate, 4) AS tract_no_vehicle_rate,
-        ROUND(base.tract_median_income, 0) AS tract_median_income,
-        base.tract_distance_km,
-        ROUND(distance, 4) AS cosine_distance
+        r.recipient_id,
+        r.name,
+        r.street,
+        r.city,
+        r.state,
+        r.zip_code,
+        r.archetype,
+        r.archetype_label,
+        r.cold_storage,
+        r.frozen_storage,
+        r.loading_dock,
+        r.refrigerated_transport,
+        r.max_pallets,
+        r.pickup_window_hours,
+        r.weekly_households,
+        r.populations_served,
+        r.service_days,
+        r.profile_text,
+        r.profile_source,
+        d.tract_geo_id,
+        ROUND(d.poverty_rate, 4) AS tract_poverty_rate,
+        ROUND(d.assistance_rate, 4) AS tract_assistance_rate,
+        ROUND(d.no_vehicle_rate, 4) AS tract_no_vehicle_rate,
+        ROUND(d.median_income, 0) AS tract_median_income,
+        d.distance_to_tract_miles AS tract_distance_miles,
+        ROUND(vs.distance, 4) AS cosine_distance,
+        ROUND(1.0 - vs.distance, 4) AS cosine_similarity
       FROM VECTOR_SEARCH(
         TABLE `qwiklabs-gcp-04-e7160ff57547.a4i_food.recipient_embeddings`,
         'embedding',
@@ -142,9 +152,74 @@ tools:
         top_k => 20,
         distance_type => 'COSINE',
         options => '{"use_brute_force":true}'
-      )
-      WHERE base.pickup_window_hours <= @max_pickup_window_hours
-      ORDER BY distance ASC, base.tract_poverty_rate DESC
+      ) vs
+      JOIN `qwiklabs-gcp-04-e7160ff57547.a4i_food.recipients` r
+        ON vs.base.recipient_id = r.recipient_id
+      LEFT JOIN `qwiklabs-gcp-04-e7160ff57547.a4i_food.recipients_demographics` d
+        ON vs.base.recipient_id = d.recipient_id
+      WHERE r.pickup_window_hours <= @max_pickup_window_hours
+      ORDER BY vs.distance ASC, d.poverty_rate DESC
+
+  match_posting_embeddings_vector:
+    kind: bigquery-sql
+    source: a4i_bigquery
+    description: >-
+      Retrieve semantically similar recipients for a specific posting_id (1 through 10)
+      using pre-computed vectors from a4i_food.posting_embeddings and a4i_food.recipient_embeddings.
+    parameters:
+      - name: posting_id
+        type: integer
+        description: Posting ID (1 to 10) to match.
+      - name: max_pickup_window_hours
+        type: integer
+        description: Maximum acceptable recipient pickup window in hours.
+    statement: |
+      SELECT
+        r.recipient_id,
+        r.name,
+        r.street,
+        r.city,
+        r.state,
+        r.zip_code,
+        r.archetype,
+        r.archetype_label,
+        r.cold_storage,
+        r.frozen_storage,
+        r.loading_dock,
+        r.refrigerated_transport,
+        r.max_pallets,
+        r.pickup_window_hours,
+        r.weekly_households,
+        r.populations_served,
+        r.service_days,
+        r.profile_text,
+        r.profile_source,
+        d.tract_geo_id,
+        ROUND(d.poverty_rate, 4) AS tract_poverty_rate,
+        ROUND(d.assistance_rate, 4) AS tract_assistance_rate,
+        ROUND(d.no_vehicle_rate, 4) AS tract_no_vehicle_rate,
+        ROUND(d.median_income, 0) AS tract_median_income,
+        d.distance_to_tract_miles AS tract_distance_miles,
+        ROUND(vs.distance, 4) AS cosine_distance,
+        ROUND(1.0 - vs.distance, 4) AS cosine_similarity
+      FROM VECTOR_SEARCH(
+        TABLE `qwiklabs-gcp-04-e7160ff57547.a4i_food.recipient_embeddings`,
+        'embedding',
+        (
+          SELECT embedding
+          FROM `qwiklabs-gcp-04-e7160ff57547.a4i_food.posting_embeddings`
+          WHERE posting_id = @posting_id
+        ),
+        top_k => 20,
+        distance_type => 'COSINE',
+        options => '{"use_brute_force":true}'
+      ) vs
+      JOIN `qwiklabs-gcp-04-e7160ff57547.a4i_food.recipients` r
+        ON vs.base.recipient_id = r.recipient_id
+      LEFT JOIN `qwiklabs-gcp-04-e7160ff57547.a4i_food.recipients_demographics` d
+        ON vs.base.recipient_id = d.recipient_id
+      WHERE r.pickup_window_hours <= @max_pickup_window_hours
+      ORDER BY vs.distance ASC, d.poverty_rate DESC
 
 toolsets:
   food_broker_toolset:
@@ -152,3 +227,4 @@ toolsets:
     - get_surplus_posting
     - search_shelf_life
     - match_recipients_vector
+    - match_posting_embeddings_vector
