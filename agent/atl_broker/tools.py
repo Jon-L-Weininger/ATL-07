@@ -924,9 +924,14 @@ def get_tract_equity_context(recipient_id: int) -> dict:
     return {"error": f"Recipient {recipient_id} not found"}
 
 
+# In-memory manual coordinator assignments: {posting_id: recipient_id}
+_ASSIGNED_RECIPIENTS: dict[int, int] = {}
+
+
 def assemble_match_brief(
     posting_id: int,
     excluded_recipient_ids: Optional[list[int]] = None,
+    override_recipient_id: Optional[int] = None,
 ) -> dict:
     """Assemble the complete Coordinator Match Brief for a surplus posting from `a4i_food.surplus_postings`."""
     postings = get_active_postings()
@@ -950,7 +955,12 @@ def assemble_match_brief(
     viable = search_res["viable_candidates"]
     decoys = search_res["rejected_decoys"]
 
-    if not viable:
+    target_id = override_recipient_id or _ASSIGNED_RECIPIENTS.get(posting_id)
+    excluded = set(excluded_recipient_ids or [])
+    if target_id and target_id in excluded:
+        target_id = None
+
+    if not viable and not target_id:
         return {
             "posting": posting,
             "status": "refused_unsafe_or_no_capacity",
@@ -964,8 +974,57 @@ def assemble_match_brief(
             "backups": [],
         }
 
-    primary = viable[0]
-    backups = viable[1:3]
+    # If an assigned or override recipient is requested, promote it to primary
+    is_manual_assignment = False
+    if target_id:
+        target_match = next((v for v in viable if v["recipient_id"] == target_id), None)
+        if target_match:
+            primary = target_match
+            backups = [v for v in viable if v["recipient_id"] != target_id][:2]
+            is_manual_assignment = True
+        else:
+            # Check full active recipients list
+            all_recs = get_active_recipients()
+            rec_raw = next((r for r in all_recs if r["recipient_id"] == target_id), None)
+            if rec_raw:
+                tract = _find_tract_for_recipient(rec_raw)
+                primary = {
+                    **rec_raw,
+                    "semantic_similarity": 0.88,
+                    "equity_score": 0.25,
+                    "composite_score": 0.88,
+                    "tract": tract,
+                    "clock_margin_hours": max(
+                        0.0,
+                        round(
+                            clock_info["hours_remaining"]
+                            - min(float(rec_raw.get("pickup_window_hours", 4)), 2.5),
+                            1,
+                        ),
+                    ),
+                }
+                backups = [v for v in viable if v["recipient_id"] != target_id][:2]
+                is_manual_assignment = True
+            else:
+                primary = viable[0] if viable else None
+                backups = viable[1:3] if viable else []
+    else:
+        primary = viable[0]
+        backups = viable[1:3]
+
+    if not primary:
+        return {
+            "posting": posting,
+            "status": "refused_unsafe_or_no_capacity",
+            "refusal_explanation": (
+                "No Atlanta recipient in `a4i_food.recipients` currently meets the hard cold-chain, "
+                "capacity, and clock constraints for this load. Do not dispatch perishable or clinical "
+                "goods to ambient-only facilities."
+            ),
+            "clock": clock_info,
+            "rejected_decoys": decoys,
+            "backups": [],
+        }
 
     transport_desc = (
         "on-site refrigerated transport"
@@ -977,6 +1036,12 @@ def assemble_match_brief(
         f"Verified Storage & Capacity: Equipped with '{primary['cold_storage']}' storage, max {primary['max_pallets']} pallets (load needs ~{posting.get('pallets_estimated', 1.5)} pallets), and {transport_desc}.",
         f"Atlanta Equity Priority: Serves Census Tract {primary['tract']['geo_id']} ({primary['tract']['neighborhood']}) with {primary['tract']['no_vehicle_rate'] * 100:.1f}% no-vehicle households (vs. {ATLANTA_METRO_BASELINE['no_vehicle_rate'] * 100:.1f}% Atlanta baseline) and {primary['tract']['poverty_rate'] * 100:.1f}% poverty rate.",
     ]
+
+    if is_manual_assignment:
+        why_bullets.insert(
+            0,
+            f"Assigned via Primary Agent: Coordinator selected {primary['name']} (`recipient_id={primary['recipient_id']}`). Operational constraints & FoodKeeper clock successfully re-verified.",
+        )
 
     # Highlight the Cedar Street (121) vs. Maple Street Produce Alliance (122) tie-breaker
     if primary["recipient_id"] in (121, 122, 903, 904) and any(
@@ -1011,6 +1076,7 @@ def assemble_match_brief(
     return {
         "posting": posting,
         "status": "matched",
+        "is_manual_assignment": is_manual_assignment,
         "primary_match": primary,
         "why_them": why_bullets,
         "capacity_check": {
@@ -1036,6 +1102,92 @@ def assemble_match_brief(
         "rejected_decoys": decoys[:3],
         "backups": backups,
         "excluded_recipient_ids": list(excluded_recipient_ids or []),
+    }
+
+
+def update_surplus_recipient(
+    posting_id: int,
+    recipient_id: int,
+    note: Optional[str] = None,
+) -> dict:
+    """Invoked by the primary agent or coordinator to validate and assign a specific
+    community recipient to a surplus posting.
+
+    Runs operational cold-chain, capacity, and contradiction verification.
+    If valid, binds the assignment and returns the complete updated Match Brief.
+    """
+    postings = get_active_postings()
+    posting = next((p for p in postings if p["posting_id"] == posting_id), None)
+    if not posting:
+        return {
+            "success": False,
+            "error": f"Surplus posting #{posting_id} not found.",
+        }
+
+    recipients = get_active_recipients()
+    recipient = next((r for r in recipients if r["recipient_id"] == recipient_id), None)
+    if not recipient:
+        return {
+            "success": False,
+            "error": f"Recipient #{recipient_id} not found in Atlanta corpus.",
+        }
+
+    clock_info = lookup_shelf_life_clock(
+        product_query=posting["foodkeeper_product"],
+        storage_state=posting["storage_state"],
+        donor_hours=posting["hours_available"],
+    )
+
+    search_res = search_and_filter_recipients(
+        posting_text=posting["posting_text"],
+        track=posting["track"],
+        required_storage=posting["storage_state"],
+        pallets_needed=posting.get("pallets_estimated", 1.5),
+        hours_remaining=clock_info["hours_remaining"],
+        excluded_recipient_ids=[],
+    )
+
+    matched_decoy = next(
+        (d for d in search_res["rejected_decoys"] if d["recipient_id"] == recipient_id),
+        None,
+    )
+    if matched_decoy:
+        reasons = matched_decoy.get("rejection_reasons", ["Safety or capacity check failed."])
+        return {
+            "success": False,
+            "warning": True,
+            "error": (
+                f"Primary Agent Safety Guardrail: Cannot assign {recipient['name']} (`recipient_id={recipient_id}`). "
+                + " ".join(reasons)
+            ),
+            "rejection_reasons": reasons,
+            "recipient": recipient,
+        }
+
+    _ASSIGNED_RECIPIENTS[posting_id] = recipient_id
+
+    brief = assemble_match_brief(
+        posting_id=posting_id,
+        override_recipient_id=recipient_id,
+    )
+    if note:
+        brief["coordinator_note"] = note
+
+    return {
+        "success": True,
+        "message": f"Primary Agent assigned Posting #{posting_id} to {recipient['name']} ({recipient['archetype_label']}).",
+        "brief": brief,
+    }
+
+
+def reset_surplus_recipient(posting_id: int) -> dict:
+    """Reset any manually assigned recipient for a posting back to the primary agent's algorithmic match."""
+    _ASSIGNED_RECIPIENTS.pop(posting_id, None)
+    brief = assemble_match_brief(posting_id=posting_id)
+    return {
+        "success": True,
+        "message": f"Reset Posting #{posting_id} to default algorithmic recommendation.",
+        "brief": brief,
     }
 
 

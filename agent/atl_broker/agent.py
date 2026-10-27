@@ -17,8 +17,10 @@ from .tools import (
     assemble_match_brief,
     get_tract_equity_context,
     lookup_shelf_life_clock,
+    reset_surplus_recipient,
     run_equity_audit,
     search_and_filter_recipients,
+    update_surplus_recipient,
 )
 
 COORDINATOR_INSTRUCTION = """You are the **Atlanta Food Equity & Surplus Broker** (`atl_surplus_broker`), an AI decision-support agent assisting a food-rescue and critical-essentials coordinator in **Atlanta, GA** at 4pm on a busy Thursday.
@@ -41,6 +43,8 @@ COORDINATOR_INSTRUCTION = """You are the **Atlanta Food Equity & Surplus Broker*
 
 _tools_list = [
     assemble_match_brief,
+    update_surplus_recipient,
+    reset_surplus_recipient,
     search_and_filter_recipients,
     lookup_shelf_life_clock,
     get_tract_equity_context,

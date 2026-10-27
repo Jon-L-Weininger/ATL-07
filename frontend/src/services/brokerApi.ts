@@ -109,6 +109,8 @@ export interface MatchBrief {
   rejected_decoys: Recipient[];
   backups: Recipient[];
   excluded_recipient_ids?: number[];
+  is_manual_assignment?: boolean;
+  coordinator_note?: string;
 }
 
 export interface EquityAuditResponse {
@@ -211,14 +213,52 @@ export async function createPosting(payload: {
   return data;
 }
 
+export async function fetchRecipients(
+  query?: string,
+  storage?: string,
+): Promise<{ count: number; recipients: Recipient[] }> {
+  const { data } = await api.get('/recipients', {
+    params: { query, storage },
+  });
+  return data;
+}
+
 export async function fetchMatchBrief(
   postingId: number,
   excludedRecipientIds: number[] = [],
+  overrideRecipientId?: number,
 ): Promise<MatchBrief> {
   const { data } = await api.post<MatchBrief>('/match-brief', {
     posting_id: postingId,
     excluded_recipient_ids: excludedRecipientIds,
+    override_recipient_id: overrideRecipientId,
   });
+  return data;
+}
+
+export async function updatePostingRecipient(
+  postingId: number,
+  recipientId: number,
+  note?: string,
+): Promise<{
+  success: boolean;
+  message?: string;
+  warning?: boolean;
+  error?: string;
+  brief?: MatchBrief;
+  rejection_reasons?: string[];
+}> {
+  const { data } = await api.post(`/postings/${postingId}/recipient`, {
+    recipient_id: recipientId,
+    note,
+  });
+  return data;
+}
+
+export async function resetPostingRecipient(
+  postingId: number,
+): Promise<{ success: boolean; message: string; brief: MatchBrief }> {
+  const { data } = await api.delete(`/postings/${postingId}/recipient`);
   return data;
 }
 

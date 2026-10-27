@@ -33,7 +33,9 @@ from .atl_broker.tools import (
     get_active_postings,
     get_active_recipients,
     lookup_shelf_life_clock,
+    reset_surplus_recipient,
     run_equity_audit,
+    update_surplus_recipient,
 )
 
 app = FastAPI(
@@ -63,6 +65,13 @@ class CreatePostingRequest(BaseModel):
 class MatchBriefRequest(BaseModel):
     posting_id: int
     excluded_recipient_ids: list[int] = Field(default_factory=list)
+    override_recipient_id: Optional[int] = None
+
+
+class UpdateRecipientRequest(BaseModel):
+    recipient_id: int
+    note: Optional[str] = None
+    coordinator_note: Optional[str] = None
 
 
 class ChatMessage(BaseModel):
@@ -136,9 +145,56 @@ def api_create_posting(req: CreatePostingRequest) -> dict:
     return {"posting": new_posting, "initial_brief": brief}
 
 
+@app.get("/api/recipients")
+def api_get_recipients(query: Optional[str] = None, storage: Optional[str] = None) -> dict:
+    recs = get_active_recipients()
+    if query:
+        q = query.lower().strip()
+        recs = [
+            r
+            for r in recs
+            if q in r.get("name", "").lower()
+            or q in r.get("archetype_label", "").lower()
+            or q in r.get("street", "").lower()
+            or q in r.get("zip_code", "").lower()
+            or q in r.get("tract", {}).get("neighborhood", "").lower()
+        ]
+    if storage:
+        s = storage.lower().strip()
+        if s == "refrigerated":
+            recs = [r for r in recs if r.get("cold_storage") not in ("none", "", None)]
+        elif s == "frozen":
+            recs = [r for r in recs if r.get("frozen_storage")]
+        elif s == "medical":
+            recs = [r for r in recs if r.get("cold_storage") == "medical"]
+    return {
+        "count": len(recs),
+        "recipients": recs,
+    }
+
+
+@app.post("/api/postings/{posting_id}/recipient")
+def api_update_posting_recipient(posting_id: int, req: UpdateRecipientRequest) -> dict:
+    note = req.note or req.coordinator_note or ""
+    return update_surplus_recipient(
+        posting_id=posting_id,
+        recipient_id=req.recipient_id,
+        note=note,
+    )
+
+
+@app.delete("/api/postings/{posting_id}/recipient")
+def api_reset_posting_recipient(posting_id: int) -> dict:
+    return reset_surplus_recipient(posting_id=posting_id)
+
+
 @app.post("/api/match-brief")
 def api_match_brief(req: MatchBriefRequest) -> dict:
-    return assemble_match_brief(req.posting_id, req.excluded_recipient_ids)
+    return assemble_match_brief(
+        posting_id=req.posting_id,
+        excluded_recipient_ids=req.excluded_recipient_ids,
+        override_recipient_id=req.override_recipient_id,
+    )
 
 
 @app.get("/api/equity-audit")
@@ -200,6 +256,27 @@ For **Posting #{posting['posting_id']} (`{posting['foodkeeper_product']}` — *"
 **Bottom Line:** **{primary['name']}** (`{primary['street']}, {primary['city']}, {primary['state']} {primary['zip_code']}`) passes every cold-chain and pallet constraint and serves **{primary['tract']['neighborhood']}** (`{primary['tract']['no_vehicle_rate']*100:.1f}%` no-vehicle households, `{primary['tract']['poverty_rate']*100:.1f}%` poverty)."""
         suggestions = [
             "Compare Cedar Street vs. Maple Street tie-breaker",
+            "They said no — who's next in line?",
+            "Write the outreach message for this match",
+        ]
+
+    elif "update" in q_lower or "reassign" in q_lower or "change recipient" in q_lower or "manual" in q_lower:
+        answer = f"""### Primary Agent Recipient Reassignment & Verification Protocol
+
+When updating the recipient for **Posting #{posting['posting_id']} (`{posting['foodkeeper_product']}` — {posting.get('pallets_estimated', 1.5)} pallets, `{posting['storage_state']}` storage)**:
+
+1. **Active Primary Recipient:** **{primary['name']} (`recipient_id={primary['recipient_id']}`)** — *{primary['archetype_label']}*
+   - Location: `{primary['street']}, {primary['city']}, {primary['state']}` ({primary['tract']['neighborhood']})
+   - Cold Chain & Capacity: `{primary['cold_storage']}` storage · up to `{primary['max_pallets']} pallets` · `{primary['pickup_window_hours']}h` pickup window
+2. **Safety Verification Standard:** Any candidate recipient selected via the **Update Recipient** button is strictly verified by the primary agent against hard constraints before assignment:
+   - **Cold-Chain Safety:** Rejects ambient-only facilities (`cold_storage='none'`) like *Greenline Community Pantry* for refrigerated food.
+   - **Capacity Sufficiency:** Rejects organizations with `max_pallets=0` or below the required `{posting.get('pallets_estimated', 1.5)} pallets`.
+   - **Contradiction Guard:** Rejects conflicting profiles like *Harborview Neighbors Trust*.
+3. **Automated Synthesis:** Once confirmed, the primary agent recomputes the FoodKeeper clock buffer (`+{clock.get('estimated_margin_hours', 3.5):.1f}h`), updates Census tract equity indicators, and drafts a freshly tailored outreach dispatch message.
+
+💡 *To reassign to another verified partner, click the **Update Recipient** button in the Match Brief card header.*"""
+        suggestions = [
+            "Who should get this load?",
             "They said no — who's next in line?",
             "Write the outreach message for this match",
         ]

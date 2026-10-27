@@ -30,9 +30,11 @@ import {
   fetchMatchBrief,
   fetchEquityAudit,
   createPosting,
+  resetPostingRecipient,
 } from './services/brokerApi';
 import { ChatPanel } from './components/ChatPanel';
 import { EquityAuditChart } from './components/EquityAuditChart';
+import { UpdateRecipientModal } from './components/UpdateRecipientModal';
 
 const RETAIL_TRACK = 'RETAIL';
 
@@ -56,6 +58,10 @@ export const App: React.FC = () => {
   // Slide-over AI Assistant Drawer (closed by default so workspace is uncluttered)
   const [isChatOpen, setIsChatOpen] = useState<boolean>(false);
   const [chatExternalPrompt, setChatExternalPrompt] = useState<string | null>(null);
+
+  // Update Recipient Modal state & banner notification
+  const [isUpdateModalOpen, setIsUpdateModalOpen] = useState<boolean>(false);
+  const [assignmentMessage, setAssignmentMessage] = useState<string | null>(null);
 
   // New Surplus Offer Modal state (Retail & Grocer Rescue only)
   const [isNewModalOpen, setIsNewModalOpen] = useState<boolean>(false);
@@ -152,6 +158,19 @@ export const App: React.FC = () => {
       ...prev,
       [selectedPostingId]: [],
     }));
+  };
+
+  const handleResetManualAssignment = async () => {
+    try {
+      const res = await resetPostingRecipient(selectedPostingId);
+      if (res.success && res.brief) {
+        setMatchBrief(res.brief);
+        setAssignmentMessage('Reset recipient to algorithmic recommendation.');
+        setTimeout(() => setAssignmentMessage(null), 3500);
+      }
+    } catch (err) {
+      console.error('Failed to reset recipient assignment:', err);
+    }
   };
 
   const handleCopyOutreach = () => {
@@ -466,10 +485,17 @@ export const App: React.FC = () => {
                     <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 pb-5 border-b border-stone-200/80 dark:border-stone-800">
                       <div className="space-y-1.5">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 flex items-center gap-1">
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                            Recommended Match
-                          </span>
+                          {matchBrief.is_manual_assignment ? (
+                            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-800 dark:bg-blue-950/70 dark:text-blue-300 border border-blue-200 dark:border-blue-800 flex items-center gap-1">
+                              <Sparkles className="w-3.5 h-3.5" />
+                              Assigned by Coordinator &amp; Verified by Agent
+                            </span>
+                          ) : (
+                            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 flex items-center gap-1">
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              Recommended Match
+                            </span>
+                          )}
                           <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300">
                             {matchBrief.primary_match.archetype_label}
                           </span>
@@ -494,6 +520,27 @@ export const App: React.FC = () => {
 
                       {/* Primary Coordinator Action Buttons */}
                       <div className="flex flex-wrap items-center gap-2 shrink-0">
+                        {/* Prominent Update Recipient Button calling Primary Agent */}
+                        <button
+                          onClick={() => setIsUpdateModalOpen(true)}
+                          className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-emerald-900 hover:bg-emerald-950 text-white dark:bg-emerald-700 dark:hover:bg-emerald-600 flex items-center gap-1.5 transition-all shadow-sm hover:scale-[1.02]"
+                          title="Choose or change the recipient for this surplus posting using the primary agent"
+                        >
+                          <Sparkles className="w-3.5 h-3.5 text-emerald-300" />
+                          Update Recipient
+                        </button>
+
+                        {matchBrief.is_manual_assignment && (
+                          <button
+                            onClick={handleResetManualAssignment}
+                            title="Reset to default algorithmic recommendation"
+                            className="px-3 py-2 rounded-xl text-xs font-medium border border-stone-300 dark:border-stone-700 text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 flex items-center gap-1 transition-colors"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                            Reset to Recommended
+                          </button>
+                        )}
+
                         {(excludedByPosting[selectedPostingId]?.length || 0) > 0 && (
                           <button
                             onClick={handleResetExclusions}
@@ -514,6 +561,20 @@ export const App: React.FC = () => {
                         </button>
                       </div>
                     </div>
+
+                    {/* Recipient Assignment Notification Banner */}
+                    {assignmentMessage && (
+                      <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-900 dark:text-emerald-200 flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                        <span>{assignmentMessage}</span>
+                      </div>
+                    )}
+                    {matchBrief.is_manual_assignment && matchBrief.coordinator_note && !assignmentMessage && (
+                      <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 text-xs text-blue-900 dark:text-blue-200 flex items-center gap-2">
+                        <span className="font-semibold shrink-0">Coordinator Note:</span>
+                        <span>{matchBrief.coordinator_note}</span>
+                      </div>
+                    )}
 
                     {/* 3 Clean Verification Tiles */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -913,6 +974,24 @@ export const App: React.FC = () => {
             </form>
           </div>
         </div>
+      )}
+
+      {/* Update Recipient Modal - Primary Agent Dispatcher */}
+      {activePosting && (
+        <UpdateRecipientModal
+          isOpen={isUpdateModalOpen}
+          onClose={() => setIsUpdateModalOpen(false)}
+          posting={activePosting}
+          currentRecipient={matchBrief?.primary_match || null}
+          backups={matchBrief?.backups || []}
+          onRecipientUpdated={(updatedBrief, msg) => {
+            setMatchBrief(updatedBrief);
+            if (msg) {
+              setAssignmentMessage(msg);
+              setTimeout(() => setAssignmentMessage(null), 5000);
+            }
+          }}
+        />
       )}
     </div>
   );
