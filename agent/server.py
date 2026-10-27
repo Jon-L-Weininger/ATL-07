@@ -139,6 +139,8 @@ def api_create_posting(req: CreatePostingRequest) -> dict:
         "posting_id": next_id,
         "track": req.track.upper(),
         "donor_name": req.donor_name,
+        "donor_lat": 33.7719,
+        "donor_lon": -84.3665,
         "posting_text": req.posting_text,
         "foodkeeper_product": req.foodkeeper_product,
         "storage_state": req.storage_state,
@@ -209,6 +211,16 @@ def api_match_brief(req: MatchBriefRequest) -> dict:
 @app.get("/api/equity-audit")
 def api_equity_audit(track: str = "ALL") -> dict:
     return run_equity_audit(track)
+
+
+@app.get("/api/demographics/tracts")
+def api_get_demographic_tracts() -> dict:
+    from .atl_broker.mock_data import TRACT_DEMOGRAPHICS
+
+    return {
+        "count": len(TRACT_DEMOGRAPHICS),
+        "tracts": TRACT_DEMOGRAPHICS,
+    }
 
 
 @app.post("/api/fulfilments")

@@ -30,6 +30,7 @@ from agent.app_utils.a2a import attach_a2a_routes
 from agent.server import (
     api_create_posting,
     api_equity_audit,
+    api_get_demographic_tracts,
     api_get_fulfilments,
     api_get_postings,
     api_get_recipients,
@@ -94,6 +95,7 @@ app.add_api_route("/api/postings/{posting_id}/recipient", api_update_posting_rec
 app.add_api_route("/api/postings/{posting_id}/recipient", api_reset_posting_recipient, methods=["DELETE"])
 app.add_api_route("/api/match-brief", api_match_brief, methods=["POST"])
 app.add_api_route("/api/equity-audit", api_equity_audit, methods=["GET"])
+app.add_api_route("/api/demographics/tracts", api_get_demographic_tracts, methods=["GET"])
 app.add_api_route("/api/fulfilments", api_submit_fulfilment, methods=["POST"])
 app.add_api_route("/api/fulfilments", api_get_fulfilments, methods=["GET"])
 app.add_api_route("/api/chat", chat_endpoint, methods=["POST"])
