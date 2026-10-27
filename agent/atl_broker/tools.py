@@ -749,7 +749,35 @@ def search_and_filter_recipients(
 
     vec_scores: dict[int, float] = {}
     if not USE_MOCK_BACKEND and USE_VECTOR_SEARCH:
-        vec_scores = _query_live_vector_search(posting_text)
+        try:
+            from .vector_search import get_search_engine
+
+            engine = get_search_engine()
+            res = engine.match_surplus_posting(
+                query_text=posting_text,
+                storage_state=required_storage,
+                pallets_needed=pallets_needed,
+                hours_remaining=hours_remaining,
+                excluded_recipient_ids=list(excluded),
+            )
+            return {
+                "query_summary": {
+                    "posting_text": posting_text,
+                    "track": track,
+                    "required_storage": required_storage,
+                    "pallets_needed": pallets_needed,
+                    "hours_remaining": hours_remaining,
+                    "excluded_recipient_ids": list(excluded),
+                    "backend_mode": "live_bigquery_tables",
+                    "vector_search_mode": "hybrid_vector_bm25_rrf_rerank",
+                    "total_recipients_scanned": len(engine._recipients),
+                },
+                "viable_candidates": res["viable_candidates"],
+                "rejected_decoys": res["flagged_decoys"],
+            }
+        except Exception as exc:
+            logger.warning("Hybrid search engine fallback to profile scorer: %s", exc)
+            vec_scores = _query_live_vector_search(posting_text)
 
     viable_candidates = []
     rejected_decoys = []
