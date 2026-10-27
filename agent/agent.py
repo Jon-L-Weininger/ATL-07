@@ -24,6 +24,13 @@ from google.adk.tools.mcp_tool.mcp_session_manager import (
 )
 from google.genai import types
 
+from agent.atl_broker.tools import (
+    assemble_match_brief,
+    get_tract_equity_context,
+    lookup_shelf_life_clock,
+    run_equity_audit,
+    search_and_filter_recipients,
+)
 from agent.custom_tools import evaluate_logistics_and_split
 
 MODEL = os.environ.get("ADK_MODEL", "gemini-2.5-flash")
@@ -86,7 +93,15 @@ root_agent = Agent(
         retry_options=types.HttpRetryOptions(attempts=3),
     ),
     instruction=BROKER_INSTRUCTION,
-    tools=[mcp_food_broker_toolset, evaluate_logistics_and_split],
+    tools=[
+        mcp_food_broker_toolset,
+        evaluate_logistics_and_split,
+        assemble_match_brief,
+        search_and_filter_recipients,
+        lookup_shelf_life_clock,
+        get_tract_equity_context,
+        run_equity_audit,
+    ],
 )
 
 app = App(

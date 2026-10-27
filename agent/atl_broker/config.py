@@ -7,9 +7,9 @@ import os
 # Default is now "false" since the real BigQuery tables are populated!
 USE_MOCK_BACKEND: bool = os.getenv("USE_MOCK_BACKEND", "false").lower() in ("true", "1", "yes")
 
-# Toggle for BigQuery VECTOR_SEARCH + AI.EMBED.
-# Default is "false" while `recipients` does not yet have a `profile_embedding` column.
-USE_VECTOR_SEARCH: bool = os.getenv("USE_VECTOR_SEARCH", "false").lower() in ("true", "1", "yes")
+# Toggle for BigQuery VECTOR_SEARCH + ML.GENERATE_EMBEDDING on `a4i_food.recipient_embeddings`.
+# Default is "true" since `a4i_food.recipient_embeddings` (127 rows, gemini-embedding-2) is materialized!
+USE_VECTOR_SEARCH: bool = os.getenv("USE_VECTOR_SEARCH", "true").lower() in ("true", "1", "yes")
 
 # Google Cloud & BigQuery settings (matching live GCP project & dataset)
 GOOGLE_CLOUD_PROJECT: str = os.getenv("GOOGLE_CLOUD_PROJECT", "qwiklabs-gcp-04-e7160ff57547")
@@ -18,8 +18,10 @@ BQ_LOCATION: str = os.getenv("BQ_LOCATION", "US")
 EMBED_ENDPOINT: str = os.getenv("EMBED_ENDPOINT", "gemini-embedding-2")
 GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
-# Managed MCP Server / MCP Toolbox for Databases placeholder endpoint
-MCP_TOOLBOX_URL: str = os.getenv("MCP_TOOLBOX_URL", "http://localhost:5000/mcp")
+# Managed MCP Server / MCP Toolbox for Databases endpoint
+MCP_TOOLBOX_URL: str = os.getenv(
+    "MCP_TOOLBOX_URL", "http://127.0.0.1:5000/mcp/food_broker_toolset"
+)
 
 # Atlanta Metro & Track settings
 METRO_NAME: str = "Atlanta"
@@ -47,8 +49,24 @@ ATLANTA_METRO_BASELINE = {
 }
 
 
+def _is_mcp_toolbox_online() -> bool:
+    """Quick socket check to see if MCP Toolbox for Databases is listening on port 5000."""
+    import socket
+    from urllib.parse import urlparse
+
+    try:
+        parsed = urlparse(MCP_TOOLBOX_URL)
+        host = parsed.hostname or "127.0.0.1"
+        port = parsed.port or 5000
+        with socket.create_connection((host, port), timeout=0.35):
+            return True
+    except OSError:
+        return False
+
+
 def get_backend_status() -> dict:
     """Return connection readiness status for the UI Backend Placeholder Inspector."""
+    mcp_online = _is_mcp_toolbox_online()
     return {
         "mode": "mock" if USE_MOCK_BACKEND else "live",
         "use_mock_backend": USE_MOCK_BACKEND,
@@ -66,39 +84,43 @@ def get_backend_status() -> dict:
                 "current_value": f"{GOOGLE_CLOUD_PROJECT}.{BQ_DATASET} ({BQ_LOCATION})",
                 "tables": [
                     "a4i_food.recipients (127 rows: 118 real Atlanta IRS orgs + 9 planted cases)",
-                    "a4i_food.recipients_demographics (127 rows pre-joined to nearest Census tract)",
+                    "a4i_food.recipient_embeddings (127 rows pre-joined to nearest Census tract + gemini-embedding-2)",
                     "a4i_food.surplus_postings (10 rows: 4 RETAIL, 3 FARM, 3 ESSENTIALS)",
                     "a4i_food.shelf_life (661 rows: USDA FoodKeeper CC0)",
                     "a4i_food.tract_demographics (165 rows: Georgia Census Tracts)",
                 ],
-                "file_hook": "agent/atl_broker/tools.py::_load_live_bq_corpus",
+                "file_hook": "agent/atl_broker/tools.py::_ensure_bq_loaded",
             },
             {
                 "id": "vector_search",
-                "name": "BigQuery VECTOR_SEARCH + AI.EMBED",
+                "name": "BigQuery VECTOR_SEARCH + ML.GENERATE_EMBEDDING",
                 "status": (
-                    "connected"
+                    "connected (a4i_food.recipient_embeddings + gemini-embedding-2)"
                     if (not USE_MOCK_BACKEND and USE_VECTOR_SEARCH)
-                    else "placeholder (no vector index yet — profile/text scorer active)"
+                    else "placeholder (profile/text scorer active)"
                 ),
                 "env_var": "USE_VECTOR_SEARCH / EMBED_ENDPOINT",
                 "current_value": f"USE_VECTOR_SEARCH={USE_VECTOR_SEARCH} ({EMBED_ENDPOINT})",
                 "tables": [
-                    "Pending: ALTER TABLE a4i_food.recipients ADD COLUMN profile_embedding",
-                    "Fallback active: hybrid profile_text semantic scorer + hard SQL/Python post-filters",
+                    "Active: a4i_food.recipient_embeddings (embedding ARRAY<FLOAT64>, us.vertex_ai)",
+                    "Post-filter: hard SQL/Python cold-chain, capacity, clock & contradiction checks",
                 ],
                 "file_hook": "agent/atl_broker/tools.py::search_and_filter_recipients",
             },
             {
                 "id": "mcp_server",
-                "name": "Managed MCP Server / Toolbox for Databases",
-                "status": "placeholder",
+                "name": "MCP Toolbox for Databases (food_broker_toolset)",
+                "status": (
+                    "connected (MCP Toolbox :5000)"
+                    if mcp_online
+                    else "standby (start toolbox --tools-file agent/tools.yaml --ui)"
+                ),
                 "env_var": "MCP_TOOLBOX_URL",
                 "current_value": MCP_TOOLBOX_URL,
                 "tables": [
-                    "MCP tools: lookup_shelf_life_clock, search_and_filter_recipients, get_tract_equity_context"
+                    "MCP tools: list_surplus_postings, get_surplus_posting, search_shelf_life, match_recipients_vector"
                 ],
-                "file_hook": "agent/atl_broker/agent.py",
+                "file_hook": "agent/tools.yaml & agent/atl_broker/agent.py",
             },
             {
                 "id": "adk_chat",

@@ -64,6 +64,7 @@ embedded AS (
 )
 SELECT
   * EXCEPT(emb),
+  profile_text AS summary,
   emb.result AS embedding
 FROM embedded
 WHERE emb.status = ''

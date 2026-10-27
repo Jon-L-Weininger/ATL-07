@@ -1,8 +1,18 @@
 """ADK Agent definition for Challenge 2: Atlanta Food Equity & Surplus Broker (ATL-07)."""
 
 from google.adk.agents import Agent
+from google.adk.tools import McpToolset
+from google.adk.tools.mcp_tool.mcp_session_manager import (
+    StreamableHTTPConnectionParams,
+)
 
-from .config import GEMINI_MODEL, MCP_TOOLBOX_URL, USE_MOCK_BACKEND
+from ..custom_tools import evaluate_logistics_and_split
+from .config import (
+    GEMINI_MODEL,
+    MCP_TOOLBOX_URL,
+    USE_MOCK_BACKEND,
+    _is_mcp_toolbox_online,
+)
 from .tools import (
     assemble_match_brief,
     get_tract_equity_context,
@@ -29,9 +39,29 @@ COORDINATOR_INSTRUCTION = """You are the **Atlanta Food Equity & Surplus Broker*
 - **Refuse Unsafe Matches:** If no organization can safely store or pick up the load in time, refuse to fabricate a match and explain the binding constraint.
 """
 
-# TODO(backend): When MCP Toolbox / Managed MCP Server is deployed and USE_MOCK_BACKEND=false,
-# attach McpToolset(connection_params=SseServerParams(url=MCP_TOOLBOX_URL)) to `tools` below.
-_ = (USE_MOCK_BACKEND, MCP_TOOLBOX_URL)
+_tools_list = [
+    assemble_match_brief,
+    search_and_filter_recipients,
+    lookup_shelf_life_clock,
+    get_tract_equity_context,
+    run_equity_audit,
+    evaluate_logistics_and_split,
+]
+
+if not USE_MOCK_BACKEND and _is_mcp_toolbox_online():
+    _mcp_url = (
+        MCP_TOOLBOX_URL
+        if "/mcp/" in MCP_TOOLBOX_URL
+        else f"{MCP_TOOLBOX_URL.rstrip('/')}/mcp/food_broker_toolset"
+    )
+    _tools_list.append(
+        McpToolset(
+            connection_params=StreamableHTTPConnectionParams(
+                url=_mcp_url,
+                timeout=30.0,
+            )
+        )
+    )
 
 root_agent = Agent(
     name="atl_surplus_broker",
@@ -41,11 +71,5 @@ root_agent = Agent(
         "Critical Non-Food Essentials."
     ),
     instruction=COORDINATOR_INSTRUCTION,
-    tools=[
-        assemble_match_brief,
-        search_and_filter_recipients,
-        lookup_shelf_life_clock,
-        get_tract_equity_context,
-        run_equity_audit,
-    ],
+    tools=_tools_list,
 )
